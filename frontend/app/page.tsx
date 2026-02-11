@@ -25,6 +25,7 @@
 import Navigation from '@/src/components/layout/Navigation'
 import HeroSection from '@/src/components/landing/HeroSection'
 import SafetyPillarBar from '@/src/components/landing/SafetyPillarBar'
+import CategoryTiles from '@/src/components/landing/CategoryTiles'
 
 export default function HomePage() {
   return (
@@ -50,6 +51,9 @@ export default function HomePage() {
         SECTION 2.5: SAFETY PILLARS
         ============================================ */}
       <SafetyPillarBar />
+      {/* ← NEW: Curated Categories */}
+      <section className="py-8 sm:py-12 bg-gray-50 dark:bg-gray-900 ..."></section>
+      <CategoryTiles />
       
       {/* 
         ============================================
