@@ -1,26 +1,384 @@
-@import "tailwindcss";
+/* 
+  GLOBAL STYLES - DUAL THEME SYSTEM
+  ============================================================================
+  LOCATION: /frontend/src/app/globals.css
+  
+  PURPOSE: 
+  1. Define base styles for light/dark modes
+  2. Create custom utilities for dual theme system
+  3. Handle transitions between themes
+  
+  HOW IT WORKS:
+  - Light mode: Default styles
+  - Dark mode: Activated by .dark class on <html>
+  - Each element has separate light/dark classes
+  - Smooth transitions between themes
+  ============================================================================
+*/
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Import Tailwind CSS v4 */
+@import 'tailwindcss';
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* 
+  LINK CONFIGURATION (Tailwind v4 Fix)
+  ------------------------------------
+  Explicitly load the config file to ensure `darkMode: 'class'` is respected.
+*/
+@config "../tailwind.config.ts";
 
-@media (prefers-color-scheme: dark) {
+/* 
+  BASE STYLES - DUAL THEME SETUP
+  ============================================================================
+*/
+@layer base {
+
+  /* 
+    LIGHT MODE (DEFAULT)
+    --------------------
+    Bright, high contrast colors on white background
+  */
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Color scheme for light mode (affects scrollbars, form controls) */
+    color-scheme: light;
+
+    /* Smooth transitions for theme switching */
+    * {
+      transition-property: color, background-color, border-color, fill, stroke;
+      transition-duration: 200ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+
+  /* 
+    DARK MODE (ACTIVATED BY .dark CLASS)
+    ------------------------------------
+    Muted, lower contrast colors on dark background
+  */
+  .dark {
+    /* Color scheme for dark mode */
+    color-scheme: dark;
+  }
+
+  /* 
+    HTML & BODY - DUAL THEME STYLES
+    -------------------------------
+    Separate background and text colors for each theme
+  */
+  html {
+    /* Prevent font scaling on mobile */
+    -webkit-text-size-adjust: 100%;
+
+    /* Smooth scrolling */
+    scroll-behavior: smooth;
+
+    /* Prevent horizontal overflow */
+    overflow-x: hidden;
+
+    /* System font stack */
+    font-family: ui-sans-serif, system-ui, sans-serif, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+
+  body {
+    /* ============================================
+       LIGHT MODE STYLES (DEFAULT)
+       ============================================ */
+    background-color: #ffffff;
+    /* White background */
+    color: #111827;
+    /* Dark gray text */
+
+    /* ============================================
+       DARK MODE STYLES (WHEN .dark CLASS IS PRESENT)
+       ============================================ */
+    .dark & {
+      background-color: #030712;
+      /* Very dark gray background */
+      color: #f9fafb;
+      /* Light gray text */
+    }
+
+    /* Better font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 
+    FOCUS INDICATORS - DUAL THEME
+    -----------------------------
+    Different focus colors for light/dark modes
+  */
+  :focus-visible {
+    outline: 2px solid;
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+
+    /* Light mode focus color */
+    outline-color: #2563eb;
+    /* Bright blue */
+
+    /* Dark mode focus color */
+    .dark & {
+      outline-color: #3b82f6;
+      /* Softer blue */
+    }
+  }
+
+  /* 
+    SELECTION STYLES - DUAL THEME
+    -----------------------------
+    Different text selection colors
+  */
+  ::selection {
+    /* Light mode selection */
+    background-color: #dbeafe;
+    /* Blue-100 */
+    color: #111827;
+    /* Dark text */
+  }
+
+  .dark ::selection {
+    /* Dark mode selection */
+    background-color: #1e3a8a;
+    /* Blue-900 */
+    color: #f9fafb;
+    /* Light text */
+  }
+
+  /* 
+    SCROLLBAR STYLES - DUAL THEME
+    -----------------------------
+    Custom scrollbars for each theme
+  */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    /* Light mode track */
+    background: #f3f4f6;
+    /* Gray-100 */
+
+    /* Dark mode track */
+    .dark & {
+      background: #1f2937;
+      /* Gray-800 */
+    }
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+
+    /* Light mode thumb */
+    background: #9ca3af;
+    /* Gray-400 */
+
+    /* Dark mode thumb */
+    .dark & {
+      background: #4b5563;
+      /* Gray-600 */
+    }
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    /* Light mode hover */
+    background: #6b7280;
+    /* Gray-500 */
+
+    /* Dark mode hover */
+    .dark & {
+      background: #374151;
+      /* Gray-700 */
+    }
+  }
+
+  /* 
+    MOBILE OPTIMIZATIONS
+    --------------------
+    Applied on screens < 640px
+  */
+  @media (max-width: 640px) {
+    html {
+      /* Consistent base font size */
+      font-size: 16px;
+    }
+
+    body {
+      /* Optimize text rendering on mobile */
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Better touch targets (WCAG 2.1) */
+    button,
+    a {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* 
+  CUSTOM UTILITIES - DUAL THEME SYSTEM
+  ============================================================================
+  These utilities automatically switch between light/dark modes
+*/
+@layer utilities {
+
+  /* 
+    BACKGROUND GRID PATTERN
+    -----------------------
+    Different grid patterns for light/dark modes
+  */
+  .bg-theme-grid {
+    /* Light mode grid (subtle) */
+    background-image:
+      linear-gradient(to right, rgb(209 213 219 / 0.15) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(209 213 219 / 0.15) 1px, transparent 1px);
+    background-size: 50px 50px;
+
+    /* Dark mode grid (more visible) */
+    .dark & {
+      background-image:
+        linear-gradient(to right, rgb(75 85 99 / 0.2) 1px, transparent 1px),
+        linear-gradient(to bottom, rgb(75 85 99 / 0.2) 1px, transparent 1px);
+    }
+  }
+
+  /* 
+    GLASS MORPHISM EFFECT
+    ---------------------
+    Frosted glass effect with theme-specific colors
+  */
+  .glass-theme {
+    /* Light mode glass */
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    /* Dark mode glass */
+    .dark & {
+      background: rgba(17, 24, 39, 0.7);
+      border: 1px solid rgba(55, 65, 81, 0.2);
+    }
+  }
+
+  /* 
+    CARD COMPONENT - DUAL THEME
+    ---------------------------
+    Cards automatically switch between light/dark styles
+  */
+  .card-theme {
+    /* Light mode card */
+    background-color: #ffffff;
+    /* White */
+    border: 1px solid #e5e7eb;
+    /* Gray-200 */
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+
+    /* Dark mode card */
+    .dark & {
+      background-color: #1f2937;
+      /* Gray-800 */
+      border-color: #374151;
+      /* Gray-700 */
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  /* Mobile optimization for cards */
+  @media (max-width: 640px) {
+    .card-theme {
+      padding: 1rem;
+      border-radius: 0.5rem;
+    }
+  }
+
+  /* 
+    CONTAINER WITH SAFE PADDING
+    ---------------------------
+    Consistent horizontal padding
+  */
+  .container-safe {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container-safe {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-safe {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  /* 
+    HIDE SCROLLBAR
+    --------------
+    Hide scrollbar but keep scrolling
+  */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 
+    TEXT BALANCE
+    ------------
+    Better text wrapping
+  */
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* 
+  ANIMATION CLASSES
+  ============================================================================
+  Reusable animations
+*/
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 
+  PRINT STYLES
+  ============================================================================
+  Optimize for printing
+*/
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
 }

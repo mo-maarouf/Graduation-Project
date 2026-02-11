@@ -1,65 +1,261 @@
-import Image from "next/image";
+// ============================================================================
+// LANDING PAGE - DUAL THEME IMPLEMENTATION
+// ============================================================================
+// LOCATION: /frontend/src/app/page.tsx
+// 
+// PURPOSE: Showcase dual theme system with separate colors for light/dark
+// 
+// COLOR USAGE GUIDE:
+// 
+// LIGHT MODE (Default):
+// - Backgrounds: White and light gray
+// - Text: Dark gray and muted gray
+// - Accents: Bright, saturated colors
+// 
+// DARK MODE (When .dark class is present):
+// - Backgrounds: Dark gray and black
+// - Text: Light gray and muted light gray
+// - Accents: Muted, desaturated colors
+// 
+// HOW TO USE DUAL COLORS:
+// Use classes like: `text-primary-light dark:text-primary-dark`
+// This applies primary-light in light mode, primary-dark in dark mode
+// ============================================================================
 
-export default function Home() {
+import Navigation from '@/src/components/layout/Navigation'
+import HeroSection from '@/src/components/landing/HeroSection'
+
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <>
+      {/* 
+        ============================================
+        SECTION 1: GLOBAL NAVIGATION
+        ============================================
+        Uses dual theme colors automatically
+      */}
+      <Navigation />
+      
+      {/* 
+        ============================================
+        SECTION 2: MAIN HERO
+        ============================================
+        Full dual theme implementation
+      */}
+      <HeroSection />
+      
+      {/* 
+        ============================================
+        SECTION 3: TRUST & PARTNERS
+        ============================================
+        Dual theme section with separate colors
+      */}
+      <section 
+        className="
+          py-8 sm:py-12 
+          bg-gray-50 dark:bg-gray-900          /* Dual background */
+          border-t 
+          border-gray-200 dark:border-gray-800 /* Dual border */
+        "
+        aria-label="Trusted partners"
+      >
+        <div className="container mx-auto px-4 text-center">
+          {/* Section title - dual text colors */}
+          <p className="
+            text-xs sm:text-sm 
+            text-gray-500 dark:text-gray-400   /* Dual muted text */
+            uppercase tracking-wider mb-4
+          ">
+            TRUSTED PARTNERS
+          </p>
+          
+          {/* Partner logos - dual colors */}
+          <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 md:gap-8">
+            {/* Each logo has separate light/dark colors */}
+            <div className="
+              text-sm sm:text-base font-bold 
+              text-gray-400 dark:text-gray-600   /* Dual logo colors */
+            ">
+              WHISH
+            </div>
+            
+            <div className="
+              text-sm sm:text-base font-semibold 
+              text-gray-400 dark:text-gray-600   /* Dual logo colors */
+            ">
+              Tourism Lebanon
+            </div>
+            
+            <div className="
+              text-sm sm:text-base font-semibold 
+              text-gray-400 dark:text-gray-600   /* Dual logo colors */
+            ">
+              Turkey Tourism
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* 
+        ============================================
+        SECTION 4: FEATURES PREVIEW
+        ============================================
+        Cards with complete dual theme support
+      */}
+      <section 
+        className="
+          py-10 sm:py-16 
+          bg-white dark:bg-gray-950              /* Dual background */
+        "
+        aria-label="Upcoming features"
+      >
+        <div className="container mx-auto px-4 text-center">
+          {/* Section heading - dual text colors */}
+          <h2 className="
+            text-xl sm:text-2xl md:text-3xl 
+            font-bold 
+            text-gray-900 dark:text-white        /* Dual heading colors */
+            mb-4
+          ">
+            More Features Coming Soon
+          </h2>
+          
+          {/* Section description - dual text colors */}
+          <p className="
+            text-sm sm:text-base 
+            text-gray-600 dark:text-gray-400     /* Dual description colors */
+            mb-6 max-w-lg mx-auto
+          ">
+            We're building a complete travel marketplace with advanced features.
+          </p>
+          
+          {/* 
+            FEATURE CARDS - DUAL THEME IMPLEMENTATION
+            Each card has separate styles for light/dark
+          */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl sm:max-w-4xl mx-auto">
+            {/* Feature Card 1: Safety */}
+            <div className="
+              card-theme                           /* Dual theme card utility */
+              hover:shadow-lg transition-shadow    /* Hover effects */
+            ">
+              {/* Icon placeholder - dual colors */}
+              <div className="
+                w-12 h-12 rounded-lg 
+                flex items-center justify-center 
+                mb-4 mx-auto opacity-30
+              ">
+                <div className="
+                  w-6 h-6 rounded 
+                  bg-gray-400 dark:bg-gray-600     /* Dual icon colors */
+                " />
+              </div>
+              
+              {/* Feature title - dual text colors */}
+              <h3 className="
+                font-semibold 
+                text-gray-900 dark:text-white      /* Dual title colors */
+                mb-2
+              ">
+                Advanced Safety
+              </h3>
+              
+              {/* Feature description - dual text colors */}
+              <p className="
+                text-sm 
+                text-gray-500 dark:text-gray-400   /* Dual description colors */
+              ">
+                Verified guides, secure payments, 48h refund guarantee
+              </p>
+            </div>
+            
+            {/* Feature Card 2: Categories */}
+            <div className="
+              card-theme                           /* Dual theme card utility */
+              hover:shadow-lg transition-shadow    /* Hover effects */
+            ">
+              <div className="
+                w-12 h-12 rounded-lg 
+                flex items-center justify-center 
+                mb-4 mx-auto opacity-30
+              ">
+                <div className="
+                  w-6 h-6 rounded 
+                  bg-gray-400 dark:bg-gray-600     /* Dual icon colors */
+                " />
+              </div>
+              <h3 className="
+                font-semibold 
+                text-gray-900 dark:text-white      /* Dual title colors */
+                mb-2
+              ">
+                Curated Categories
+              </h3>
+              <p className="
+                text-sm 
+                text-gray-500 dark:text-gray-400   /* Dual description colors */
+              ">
+                Halal-friendly, hiking, historical, cultural experiences
+              </p>
+            </div>
+            
+            {/* Feature Card 3: Live Map */}
+            <div className="
+              card-theme                           /* Dual theme card utility */
+              hover:shadow-lg transition-shadow    /* Hover effects */
+            ">
+              <div className="
+                w-12 h-12 rounded-lg 
+                flex items-center justify-center 
+                mb-4 mx-auto opacity-30
+              ">
+                <div className="
+                  w-6 h-6 rounded 
+                  bg-gray-400 dark:bg-gray-600     /* Dual icon colors */
+                " />
+              </div>
+              <h3 className="
+                font-semibold 
+                text-gray-900 dark:text-white      /* Dual title colors */
+                mb-2
+              ">
+                Live Impact Map
+              </h3>
+              <p className="
+                text-sm 
+                text-gray-500 dark:text-gray-400   /* Dual description colors */
+              ">
+                Real-time tour tracking and community impact visualization
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* 
+        ============================================
+        SECTION 5: FOOTER
+        ============================================
+        Dual theme footer
+      */}
+      <footer 
+        className="
+          py-6 
+          bg-gray-50 dark:bg-gray-900              /* Dual background */
+          border-t 
+          border-gray-200 dark:border-gray-800     /* Dual border */
+        "
+        aria-label="Footer"
+      >
+        <div className="container mx-auto px-4 text-center">
+          <p className="
+            text-sm 
+            text-gray-500 dark:text-gray-400       /* Dual text colors */
+          ">
+            © {new Date().getFullYear()} SafariHub Travel Marketplace
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      </footer>
+    </>
+  )
 }

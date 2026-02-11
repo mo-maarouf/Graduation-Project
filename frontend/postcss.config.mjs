@@ -1,7 +1,16 @@
-const config = {
-  plugins: {
-    "@tailwindcss/postcss": {},
-  },
-};
+// ============================================================================
+// POSTCSS CONFIGURATION
+// ============================================================================
+// LOCATION: /frontend/postcss.config.mjs
+// 
+// PURPOSE: Process CSS with Tailwind v4
+// 
+// IMPORTANT: Simple configuration for Tailwind v4
+// ============================================================================
 
-export default config;
+/** @type {import('postcss').ProcessOptions} */
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+}
