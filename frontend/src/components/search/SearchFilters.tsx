@@ -46,8 +46,10 @@ import {
     Home,
     Briefcase,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Check
 } from 'lucide-react'
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition } from '@headlessui/react'
 
 // Import filter components
 import FilterSection from './filters/FilterSection'
@@ -522,26 +524,95 @@ export default function SearchFilters({
                                     <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400">
                                         City
                                     </h4>
-                                    <select
-                                        value={selectedCountry || ''}
-                                        onChange={(e) => setSelectedCountry(e.target.value as Country || null)}
-                                        className="
-                                            text-xs
-                                            px-2 py-1
-                                            bg-transparent
-                                            border border-gray-300 dark:border-gray-700
-                                            rounded
-                                            text-gray-700 dark:text-gray-300
-                                            focus:outline-none focus:ring-1 focus:ring-blue-500
-                                        "
-                                    >
-                                        <option value="">All countries</option>
-                                        {filters.countries.map(country => (
-                                            <option key={country} value={country}>
-                                                {CountryLabels[country]}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="relative min-w-[120px]">
+                                        <Listbox value={selectedCountry || ''} onChange={(val) => setSelectedCountry(val as Country || null)}>
+                                            <div className="relative">
+                                                <ListboxButton className="
+                                                    relative w-full
+                                                    flex items-center justify-between
+                                                    gap-2
+                                                    px-2 py-1
+                                                    bg-gray-50 dark:bg-gray-800
+                                                    border border-gray-200 dark:border-gray-700
+                                                    rounded-lg
+                                                    text-[11px] font-medium
+                                                    text-gray-700 dark:text-gray-300
+                                                    hover:border-blue-400 dark:hover:border-blue-500
+                                                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                                                    transition-all duration-200
+                                                ">
+                                                    <span className="block truncate">
+                                                        {selectedCountry ? CountryLabels[selectedCountry] : 'All countries'}
+                                                    </span>
+                                                    <ChevronDown className="w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform duration-200 ui-open:rotate-180" />
+                                                </ListboxButton>
+
+                                                <Transition
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                >
+                                                    <ListboxOptions className="
+                                                        absolute z-50 mt-1
+                                                        max-h-60 w-48 overflow-auto
+                                                        right-0
+                                                        rounded-xl bg-white dark:bg-gray-900
+                                                        py-1 text-xs
+                                                        shadow-xl ring-1 ring-black/5 dark:ring-white/10
+                                                        focus:outline-none
+                                                    ">
+                                                        <ListboxOption
+                                                            value=""
+                                                            className={({ focus, selected }) => `
+                                                                relative cursor-default select-none
+                                                                py-2 pl-8 pr-4 transition-colors
+                                                                ${focus ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-200'}
+                                                                ${selected ? 'font-semibold' : 'font-normal'}
+                                                            `}
+                                                        >
+                                                            {({ selected }) => (
+                                                                <>
+                                                                    <span className={`block truncate ${selected ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                                                        All countries
+                                                                    </span>
+                                                                    {selected ? (
+                                                                        <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-blue-600 dark:text-blue-400">
+                                                                            <Check className="w-3.5 h-3.5" />
+                                                                        </span>
+                                                                    ) : null}
+                                                                </>
+                                                            )}
+                                                        </ListboxOption>
+                                                        {filters.countries.map(country => (
+                                                            <ListboxOption
+                                                                key={country}
+                                                                value={country}
+                                                                className={({ focus, selected }) => `
+                                                                    relative cursor-default select-none
+                                                                    py-2 pl-8 pr-4 transition-colors
+                                                                    ${focus ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-200'}
+                                                                    ${selected ? 'font-semibold' : 'font-normal'}
+                                                                `}
+                                                            >
+                                                                {({ selected }) => (
+                                                                    <>
+                                                                        <span className={`block truncate ${selected ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                                                            {CountryLabels[country]}
+                                                                        </span>
+                                                                        {selected ? (
+                                                                            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-blue-600 dark:text-blue-400">
+                                                                                <Check className="w-3.5 h-3.5" />
+                                                                            </span>
+                                                                        ) : null}
+                                                                    </>
+                                                                )}
+                                                            </ListboxOption>
+                                                        ))}
+                                                    </ListboxOptions>
+                                                </Transition>
+                                            </div>
+                                        </Listbox>
+                                    </div>
                                 </div>
                                 <CheckboxFilter
                                     options={cityOptions}
