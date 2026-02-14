@@ -1,36 +1,19 @@
 // ============================================================================
-// TRAVELER SAFE-CHAT INBOX - CARD 13
+// TRAVELER SAFE-CHAT INBOX - CARD 13 (ENHANCED LAYOUT)
 // ============================================================================
 // LOCATION: /frontend/src/app/dashboard/traveler/messages/page.tsx
 // 
 // PURPOSE: Secure messaging system between travelers and guides
 // 
-// BUSINESS REQUIREMENTS (from project spec):
-// ✓ Regex anti-leakage shield - blur phone numbers/emails until payment confirmed
-// ✓ Suspicious chats flagged for admin audit
-// ✓ Phone/email hidden until payment confirmed
-// ✓ Real-time messaging (Phase 3)
-// 
-// PRIVACY FEATURES:
-// - Contact information automatically blurred
-// - Regex pattern matching for phone/email
-// - Suspicious content flagged
-// - Messages cannot be deleted (audit trail)
-// 
-// COLOR PSYCHOLOGY:
-// - Blue: Active conversations, unread messages
-// - Green: Online status, safe messages
-// - Amber: Flagged content, warnings
-// - Red: Blocked/suspicious content
-// 
-// DUAL THEME: Full light/dark mode support
+// DESIGN: Enhanced layout matching Guide version (Card 19)
+// FEATURES: Traveler-specific (guide info, verification badges, booking context)
 // ============================================================================
 
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
+import Link from 'next/link'
 import {
     MessageSquare,
     Send,
@@ -56,10 +39,13 @@ import {
     Calendar,
     MapPin,
     X,
-    Info
+    Info,
+    Award,
+    TrendingUp,
+    HelpCircle
 } from 'lucide-react'
-
 import PageLayout from '@/src/components/layout/PageLayout'
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -67,21 +53,44 @@ import PageLayout from '@/src/components/layout/PageLayout'
 type MessageStatus = 'sent' | 'delivered' | 'read' | 'flagged'
 type ConversationStatus = 'active' | 'blocked' | 'archived'
 type SafetyLevel = 'safe' | 'suspicious' | 'blocked'
+type BookingStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled'
 
-interface Participant {
+interface Guide {
     id: string
     name: string
     avatar?: string
-    role: 'traveler' | 'guide'
-    isOnline?: boolean
-    lastSeen?: string
+    email: string
+    phone?: string
     isVerified: boolean
+    impactScore?: number
+    totalTrips?: number
+    languages?: string[]
+    badges?: {
+        type: 'top_rated' | 'super_guide' | 'halal_specialist'
+        label: string
+    }[]
+}
+
+interface BookingInfo {
+    id: string
+    tourId: string
+    tourTitle: string
+    tourImage?: string
+    date: string
+    time: string
+    peopleCount: number
+    totalPrice: number
+    currency: string
+    status: BookingStatus
+    meetingPoint?: string
 }
 
 interface Message {
     id: string
     conversationId: string
     senderId: string
+    senderName: string
+    senderAvatar?: string
     content: string
     timestamp: string
     status: MessageStatus
@@ -98,10 +107,8 @@ interface Message {
 
 interface Conversation {
     id: string
-    participants: Participant[]
-    tourId?: string
-    tourTitle?: string
-    tourImage?: string
+    guide: Guide
+    booking?: BookingInfo
     lastMessage: Message
     unreadCount: number
     status: ConversationStatus
@@ -117,23 +124,40 @@ interface Conversation {
 const MOCK_CONVERSATIONS: Conversation[] = [
     {
         id: 'conv-1',
-        participants: [
-            {
-                id: 'guide-123',
-                name: 'Mehmet Yilmaz',
-                avatar: '/images/guides/mehmet.jpg',
-                role: 'guide',
-                isOnline: true,
-                isVerified: true
-            }
-        ],
-        tourId: '1',
-        tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-        tourImage: '/images/tours/istanbul-ottoman.jpg',
+        guide: {
+            id: 'guide-123',
+            name: 'Mehmet Yilmaz',
+            avatar: '/images/guides/mehmet.jpg',
+            email: 'mehmet.guide@example.com',
+            phone: '+90 555 123 4567',
+            isVerified: true,
+            impactScore: 87,
+            totalTrips: 156,
+            languages: ['English', 'Arabic', 'Turkish'],
+            badges: [
+                { type: 'top_rated', label: 'Top Rated' },
+                { type: 'super_guide', label: 'Super Guide' },
+                { type: 'halal_specialist', label: 'Halal Specialist' }
+            ]
+        },
+        booking: {
+            id: 'b1',
+            tourId: '1',
+            tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
+            tourImage: '/images/tours/istanbul-ottoman.jpg',
+            date: '2026-03-15',
+            time: '09:00',
+            peopleCount: 2,
+            totalPrice: 178,
+            currency: 'USD',
+            status: 'confirmed',
+            meetingPoint: 'Sultanahmet Square Fountain'
+        },
         lastMessage: {
             id: 'msg-3',
             conversationId: 'conv-1',
             senderId: 'guide-123',
+            senderName: 'Mehmet Yilmaz',
             content: "Perfect! I'll meet you at the fountain with an orange sign. My phone is +90 555 123 4567 if you need to reach me.",
             timestamp: '2026-03-10T14:30:00Z',
             status: 'delivered',
@@ -149,25 +173,40 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     },
     {
         id: 'conv-2',
-        participants: [
-            {
-                id: 'guide-456',
-                name: 'Layla Hassan',
-                avatar: '/images/guides/layla.jpg',
-                role: 'guide',
-                isOnline: false,
-                lastSeen: '2026-03-10T10:15:00Z',
-                isVerified: true
-            }
-        ],
-        tourId: '2',
-        tourTitle: 'Beirut Street Food & Cultural Walk',
-        tourImage: '/images/tours/beirut-food.jpg',
+        guide: {
+            id: 'guide-456',
+            name: 'Layla Hassan',
+            avatar: '/images/guides/layla.jpg',
+            email: 'layla.hassan@example.com',
+            phone: '+961 70 123 456',
+            isVerified: true,
+            impactScore: 92,
+            totalTrips: 89,
+            languages: ['English', 'Arabic', 'French'],
+            badges: [
+                { type: 'top_rated', label: 'Top Rated' },
+                { type: 'halal_specialist', label: 'Halal Specialist' }
+            ]
+        },
+        booking: {
+            id: 'b2',
+            tourId: '2',
+            tourTitle: 'Beirut Street Food & Cultural Walk',
+            tourImage: '/images/tours/beirut-food.jpg',
+            date: '2026-03-22',
+            time: '11:00',
+            peopleCount: 4,
+            totalPrice: 171,
+            currency: 'USD',
+            status: 'confirmed',
+            meetingPoint: 'Beirut Souks Entrance'
+        },
         lastMessage: {
             id: 'msg-6',
             conversationId: 'conv-2',
             senderId: 'traveler-123',
-            content: 'Can we start at 10am instead of 11am?',
+            senderName: 'Ahmed Khan',
+            content: "Can we start at 10am instead of 11am?",
             timestamp: '2026-03-09T16:45:00Z',
             status: 'read',
             isFlagged: false,
@@ -181,23 +220,38 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     },
     {
         id: 'conv-3',
-        participants: [
-            {
-                id: 'guide-789',
-                name: 'Ahmet Demir',
-                avatar: '/images/guides/ahmet.jpg',
-                role: 'guide',
-                isOnline: true,
-                isVerified: true
-            }
-        ],
-        tourId: '3',
-        tourTitle: 'Cappadocia Sunrise Balloon & Valley Hike',
-        tourImage: '/images/tours/cappadocia-balloon.jpg',
+        guide: {
+            id: 'guide-789',
+            name: 'Ahmet Demir',
+            avatar: '/images/guides/ahmet.jpg',
+            email: 'ahmet.demir@example.com',
+            phone: '+90 555 987 6543',
+            isVerified: true,
+            impactScore: 78,
+            totalTrips: 45,
+            languages: ['English', 'Turkish'],
+            badges: [
+                { type: 'super_guide', label: 'Super Guide' }
+            ]
+        },
+        booking: {
+            id: 'b3',
+            tourId: '3',
+            tourTitle: 'Cappadocia Sunrise Balloon & Valley Hike',
+            tourImage: '/images/tours/cappadocia-balloon.jpg',
+            date: '2026-03-20',
+            time: '04:30',
+            peopleCount: 2,
+            totalPrice: 398,
+            currency: 'USD',
+            status: 'pending',
+            meetingPoint: 'Göreme Sunrise Point'
+        },
         lastMessage: {
             id: 'msg-9',
             conversationId: 'conv-3',
             senderId: 'guide-789',
+            senderName: 'Ahmet Demir',
             content: 'Your booking is confirmed! Check your email at ahmed.khan@email.com for details.',
             timestamp: '2026-03-08T09:20:00Z',
             status: 'delivered',
@@ -213,24 +267,36 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     },
     {
         id: 'conv-4',
-        participants: [
-            {
-                id: 'guide-101',
-                name: 'Elias Khoury',
-                avatar: '/images/guides/elias.jpg',
-                role: 'guide',
-                isOnline: false,
-                lastSeen: '2026-03-07T18:30:00Z',
-                isVerified: true
-            }
-        ],
-        tourId: '4',
-        tourTitle: 'Byblos Ancient Ruins & Archaeological Tour',
-        tourImage: '/images/tours/byblos-ruins.jpg',
+        guide: {
+            id: 'guide-101',
+            name: 'Elias Khoury',
+            avatar: '/images/guides/elias.jpg',
+            email: 'elias.khoury@example.com',
+            phone: '+961 76 789 012',
+            isVerified: true,
+            impactScore: 65,
+            totalTrips: 23,
+            languages: ['English', 'Arabic'],
+            badges: []
+        },
+        booking: {
+            id: 'b4',
+            tourId: '4',
+            tourTitle: 'Byblos Ancient Ruins & Archaeological Tour',
+            tourImage: '/images/tours/byblos-ruins.jpg',
+            date: '2026-03-25',
+            time: '10:00',
+            peopleCount: 2,
+            totalPrice: 110,
+            currency: 'USD',
+            status: 'cancelled',
+            meetingPoint: 'Byblos Castle Entrance'
+        },
         lastMessage: {
             id: 'msg-12',
             conversationId: 'conv-4',
             senderId: 'guide-101',
+            senderName: 'Elias Khoury',
             content: "I can offer a discount if you book directly through me. Let's discuss payment options.",
             timestamp: '2026-03-07T14:10:00Z',
             status: 'read',
@@ -252,7 +318,8 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-1',
             conversationId: 'conv-1',
             senderId: 'traveler-123',
-            content: "Hi Mehmet! I'm excited about the Ottoman tour. Is it suitable for children?",
+            senderName: 'Ahmed Khan',
+            content: "Hi Mehmet! I'm excited about the Ottoman tour. Is it suitable for children? We have two kids aged 8 and 10.",
             timestamp: '2026-03-09T10:15:00Z',
             status: 'read',
             isFlagged: false,
@@ -262,7 +329,8 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-2',
             conversationId: 'conv-1',
             senderId: 'guide-123',
-            content: "Hello! Yes, it's family-friendly. Kids especially love the Topkapi Palace treasury rooms!",
+            senderName: 'Mehmet Yilmaz',
+            content: "Hello Ahmed! Yes, it's very family-friendly. Kids especially love the Topkapi Palace treasury rooms with all the jewels! I've guided many families with children that age.",
             timestamp: '2026-03-09T10:25:00Z',
             status: 'read',
             isFlagged: false,
@@ -272,6 +340,7 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-3',
             conversationId: 'conv-1',
             senderId: 'traveler-123',
+            senderName: 'Ahmed Khan',
             content: "Great! We're a family of 4. Where should we meet?",
             timestamp: '2026-03-10T14:20:00Z',
             status: 'delivered',
@@ -282,6 +351,7 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-4',
             conversationId: 'conv-1',
             senderId: 'guide-123',
+            senderName: 'Mehmet Yilmaz',
             content: "Perfect! I'll meet you at the fountain with an orange sign. My phone is +90 555 123 4567 if you need to reach me.",
             timestamp: '2026-03-10T14:30:00Z',
             status: 'delivered',
@@ -295,6 +365,7 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-5',
             conversationId: 'conv-2',
             senderId: 'traveler-123',
+            senderName: 'Ahmed Khan',
             content: "Hi Layla! We're a group of 4 for the food tour. Any vegetarian options?",
             timestamp: '2026-03-08T16:30:00Z',
             status: 'read',
@@ -305,6 +376,7 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-6',
             conversationId: 'conv-2',
             senderId: 'guide-456',
+            senderName: 'Layla Hassan',
             content: "Absolutely! There are plenty of vegetarian options. I'll make sure to include extra stops for you.",
             timestamp: '2026-03-08T17:15:00Z',
             status: 'read',
@@ -315,6 +387,7 @@ const MOCK_MESSAGES: Record<string, Message[]> = {
             id: 'msg-7',
             conversationId: 'conv-2',
             senderId: 'traveler-123',
+            senderName: 'Ahmed Khan',
             content: "Can we start at 10am instead of 11am?",
             timestamp: '2026-03-09T16:45:00Z',
             status: 'read',
@@ -447,7 +520,45 @@ function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirme
 }
 
 // ============================================================================
-// CONVERSATION LIST ITEM
+// GUIDE AVATAR WITH BADGES
+// ============================================================================
+
+interface GuideAvatarProps {
+    guide: Guide
+    size?: 'sm' | 'md' | 'lg'
+}
+
+function GuideAvatar({ guide, size = 'md' }: GuideAvatarProps) {
+    const sizeClasses = {
+        sm: 'w-8 h-8',
+        md: 'w-10 h-10',
+        lg: 'w-12 h-12'
+    }
+
+    return (
+        <div className="relative flex-shrink-0">
+            <div className={`${sizeClasses[size]} rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden`}>
+                {guide.avatar ? (
+                    <Image src={guide.avatar} alt={guide.name} fill className="object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <User className="w-1/2 h-1/2 text-gray-400" />
+                    </div>
+                )}
+            </div>
+
+            {/* Verified badge */}
+            {guide.isVerified && (
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-600 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                    <Shield className="w-2 h-2 text-white" />
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ============================================================================
+// CONVERSATION ITEM COMPONENT
 // ============================================================================
 
 interface ConversationItemProps {
@@ -457,7 +568,7 @@ interface ConversationItemProps {
 }
 
 function ConversationItem({ conversation, isActive, onClick }: ConversationItemProps) {
-    const guide = conversation.participants[0]
+    const guide = conversation.guide
     const lastMessage = conversation.lastMessage
     const time = new Date(lastMessage.timestamp).toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -477,20 +588,7 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
         >
             <div className="flex items-start gap-3">
                 {/* Avatar */}
-                <div className="relative flex-shrink-0">
-                    <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                        {guide.avatar ? (
-                            <Image src={guide.avatar} alt={guide.name} fill className="object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <User className="w-6 h-6 text-gray-400" />
-                            </div>
-                        )}
-                    </div>
-                    {guide.isOnline && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-900" />
-                    )}
-                </div>
+                <GuideAvatar guide={guide} size="md" />
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
@@ -499,8 +597,8 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
                             <span className="font-semibold text-gray-900 dark:text-white truncate">
                                 {guide.name}
                             </span>
-                            {guide.isVerified && (
-                                <Shield className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            {guide.badges && guide.badges.length > 0 && (
+                                <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             )}
                         </div>
                         <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
@@ -508,10 +606,12 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
                         </span>
                     </div>
 
-                    {/* Tour title */}
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">
-                        {conversation.tourTitle}
-                    </p>
+                    {/* Booking reference */}
+                    {conversation.booking && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">
+                            🎫 {conversation.booking.tourTitle} • {conversation.booking.date}
+                        </p>
+                    )}
 
                     {/* Last message preview */}
                     <div className="flex items-center gap-1 text-sm">
@@ -642,6 +742,75 @@ function MessageBubble({
 }
 
 // ============================================================================
+// BOOKING INFO CARD
+// ============================================================================
+
+interface BookingInfoCardProps {
+    booking: BookingInfo
+}
+
+function BookingInfoCard({ booking }: BookingInfoCardProps) {
+    const date = new Date(`${booking.date}T${booking.time}`)
+    const formattedDate = date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    })
+
+    const statusColors = {
+        confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800',
+        pending: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800',
+        completed: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800',
+        cancelled: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800'
+    }
+
+    return (
+        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl mb-4">
+            <div className="flex items-start gap-3">
+                {/* Tour image placeholder */}
+                <div className="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+
+                <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
+                        {booking.tourTitle}
+                    </h4>
+
+                    <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {formattedDate} at {booking.time}
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {booking.peopleCount} people • ${booking.totalPrice}
+                        </div>
+                        {booking.meetingPoint && (
+                            <div className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {booking.meetingPoint}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-2">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${statusColors[booking.status]}`}>
+                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </span>
+                        <Link
+                            href={`/tours/${booking.tourId}`}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                            View tour
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ============================================================================
 // SAFETY INFO PANEL
 // ============================================================================
 
@@ -685,16 +854,67 @@ function SafetyInfoPanel() {
 }
 
 // ============================================================================
+// QUICK REPLY TEMPLATES (Traveler version - questions for guides)
+// ============================================================================
+
+interface QuickReplyTemplatesProps {
+    onSelect: (text: string) => void
+}
+
+function QuickReplyTemplates({ onSelect }: QuickReplyTemplatesProps) {
+    const [isOpen, setIsOpen] = useState(false)
+
+    const templates = [
+        { text: "Thank you! I have a few questions about the tour." },
+        { text: "Is this tour suitable for children?" },
+        { text: "Are there vegetarian/vegan options available?" },
+        { text: "Where exactly is the meeting point?" },
+        { text: "What should I bring with me?" }
+    ]
+
+    return (
+        <div className="relative">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title="Quick questions"
+            >
+                <HelpCircle className="w-5 h-5" />
+            </button>
+
+            {isOpen && (
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 z-50">
+                    {templates.map((template, index) => (
+                        <button
+                            key={index}
+                            onClick={() => {
+                                onSelect(template.text)
+                                setIsOpen(false)
+                            }}
+                            className="w-full text-left p-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        >
+                            {template.text}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ============================================================================
 // MAIN CHAT INTERFACE
 // ============================================================================
 
 export default function TravelerMessagesPage() {
-    const [selectedConversation, setSelectedConversation] = useState<string>('conv-1')
+    const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
     const [showMobileList, setShowMobileList] = useState(true)
     const [newMessage, setNewMessage] = useState('')
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
-    const currentConversation = MOCK_CONVERSATIONS.find(c => c.id === selectedConversation)
+    const currentConversation = selectedConversation
+        ? MOCK_CONVERSATIONS.find(c => c.id === selectedConversation)
+        : null
     const messages = selectedConversation ? MOCK_MESSAGES[selectedConversation] || [] : []
 
     // Scroll to bottom on new messages
@@ -704,18 +924,26 @@ export default function TravelerMessagesPage() {
 
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault()
-        if (!newMessage.trim()) return
+        if (!newMessage.trim() || !selectedConversation) return
 
         // In Phase 3: Send message via API
         console.log('Sending message:', newMessage)
         setNewMessage('')
     }
 
-    return (
-        <PageLayout>
-            {/* Page offset */}
-            <div className="pt-14 sm:pt-16 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-950">
+    const handleQuickReply = (text: string) => {
+        setNewMessage(text)
+    }
 
+    const handleFlagMessage = (messageId: string) => {
+        console.log('Flag message:', messageId)
+        // In Phase 3: Report message to admin
+    }
+
+    return (
+        <PageLayout hideFooter>
+            {/* Page offset if you want the page to be for you need to controll this sm:h-[calc(100vh-4rem-5px)] in this measures the footer appear and without scroll bar because you are subtracting from height  and there is 2 one for mobile other for desktop*/}
+            <div className="pt-14 sm:pt-16 h-[calc(100vh)] sm:h-[calc(100vh)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
                 <div className="h-full flex flex-col">
                     {/* Header */}
                     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
@@ -741,7 +969,7 @@ export default function TravelerMessagesPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search messages..."
+                                placeholder="Search conversations..."
                                 className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
                         </div>
@@ -749,7 +977,7 @@ export default function TravelerMessagesPage() {
 
                     {/* Main chat area */}
                     <div className="flex-1 flex overflow-hidden">
-                        {/* Conversation list - desktop always visible, mobile conditional */}
+                        {/* Conversation list */}
                         <div className={`w-full sm:w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto ${showMobileList ? 'block' : 'hidden sm:block'}`}>
                             {MOCK_CONVERSATIONS.map((conv) => (
                                 <ConversationItem
@@ -780,12 +1008,13 @@ export default function TravelerMessagesPage() {
                                             </button>
 
                                             {/* Guide info */}
+                                            <GuideAvatar guide={currentConversation.guide} size="sm" />
                                             <div>
                                                 <h2 className="font-semibold text-gray-900 dark:text-white">
-                                                    {currentConversation.participants[0].name}
+                                                    {currentConversation.guide.name}
                                                 </h2>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {currentConversation.tourTitle}
+                                                    {currentConversation.booking?.tourTitle || 'No active booking'}
                                                 </p>
                                             </div>
                                         </div>
@@ -801,19 +1030,36 @@ export default function TravelerMessagesPage() {
 
                                     {/* Messages */}
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                        {/* Booking info card */}
+                                        {currentConversation.booking && (
+                                            <BookingInfoCard booking={currentConversation.booking} />
+                                        )}
+
                                         {messages.map((message, index) => (
-                                            <MessageBubble
-                                                key={message.id}
-                                                message={message}
-                                                isOwn={message.senderId === 'traveler-123'}
-                                                bookingConfirmed={currentConversation.bookingConfirmed}
-                                                showAvatar={
-                                                    index === 0 ||
-                                                    messages[index - 1]?.senderId !== message.senderId
-                                                }
-                                                senderName={currentConversation.participants[0].name}
-                                                senderAvatar={currentConversation.participants[0].avatar}
-                                            />
+                                            <div key={message.id} className="relative group">
+                                                <MessageBubble
+                                                    message={message}
+                                                    isOwn={message.senderId === 'traveler-123'}
+                                                    bookingConfirmed={currentConversation.bookingConfirmed}
+                                                    showAvatar={
+                                                        index === 0 ||
+                                                        messages[index - 1]?.senderId !== message.senderId
+                                                    }
+                                                    senderName={currentConversation.guide.name}
+                                                    senderAvatar={currentConversation.guide.avatar}
+                                                />
+
+                                                {/* Flag button */}
+                                                {!message.isFlagged && message.senderId !== 'traveler-123' && (
+                                                    <button
+                                                        onClick={() => handleFlagMessage(message.id)}
+                                                        className="absolute -right-2 top-1/2 -translate-y-1/2 p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
+                                                        title="Report message"
+                                                    >
+                                                        <Flag className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         ))}
                                         <div ref={messagesEndRef} />
                                     </div>
@@ -821,6 +1067,7 @@ export default function TravelerMessagesPage() {
                                     {/* Message input */}
                                     <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-800">
                                         <div className="flex gap-2">
+                                            <QuickReplyTemplates onSelect={handleQuickReply} />
                                             <button
                                                 type="button"
                                                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
