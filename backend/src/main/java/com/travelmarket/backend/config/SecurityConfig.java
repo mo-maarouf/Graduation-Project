@@ -1,9 +1,12 @@
 package com.travelmarket.backend.config;
 
 import com.travelmarket.backend.security.JwtAuthFilter;
+import com.travelmarket.backend.security.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -27,20 +30,34 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter; // Inject our custom filter
+    private final ObjectProvider<OAuth2LoginSuccessHandler>  oAuth2LoginSuccessHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Disable CSRF for stateless API
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // No sessions
+                .csrf(csrf -> csrf.disable())
+                // OAuth2 login needs a short-lived session during the redirect handshake.
+                // Your API still stays stateless because you authenticate requests with JWT.
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/health").permitAll()
+
+                        // Public auth endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+
+                        // OAuth2 endpoints must be public
+                        .requestMatchers("/api/auth/oauth2/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+
+                        // /me must be authenticated
                         .requestMatchers("/api/auth/me").authenticated()
+
+                        // Role-based protection
                         .requestMatchers("/api/admin/**").hasRole("Admin")
                         .requestMatchers("/api/guide/**").hasRole("Guide")
                         .requestMatchers("/api/traveler/**").hasRole("Traveler")
+
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
@@ -55,8 +72,16 @@ public class SecurityConfig {
                             response.getWriter().write("{\"message\":\"Forbidden\"}");
                         })
                 )
-            // Add our JWT filter before the default authentication filter
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // OAuth2 login wiring (add your handler bean)
+                .oauth2Login(oauth -> oauth
+                        .successHandler(((request, response, authentication) ->
+                                oAuth2LoginSuccessHandler.getObject()
+                                        .onAuthenticationSuccess(request, response, authentication)))  // add this field in the class
+                )
+
+                // JWT filter still applies to API requests after OAuth2 is done
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .cors(cors -> {});
 
         return http.build();

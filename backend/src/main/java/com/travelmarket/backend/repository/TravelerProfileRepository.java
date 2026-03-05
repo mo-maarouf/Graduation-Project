@@ -13,4 +13,5 @@ public interface TravelerProfileRepository extends JpaRepository<TravelerProfile
     // Custom query to find profile by user email (join with User entity)
     @Query("SELECT tp FROM TravelerProfile tp JOIN tp.user u WHERE u.email = :email")
     Optional<TravelerProfile> findByUserEmail(@Param("email") String email);
+
 }
