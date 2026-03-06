@@ -1,9 +1,6 @@
 package com.travelmarket.backend.controller;
 
-import com.travelmarket.backend.dto.AuthResponse;
-import com.travelmarket.backend.dto.LoginRequest;
-import com.travelmarket.backend.dto.RegisterRequest;
-import com.travelmarket.backend.dto.MeResponse;
+import com.travelmarket.backend.dto.*;
 import com.travelmarket.backend.entity.GuideProfile;
 import com.travelmarket.backend.entity.RefreshToken;
 import com.travelmarket.backend.entity.TravelerProfile;
@@ -13,11 +10,11 @@ import com.travelmarket.backend.repository.RefreshTokenRepository;
 import com.travelmarket.backend.repository.TravelerProfileRepository;
 import com.travelmarket.backend.repository.UserRepository;
 import com.travelmarket.backend.security.JwtUtil;
-import com.travelmarket.backend.dto.ForgotPasswordRequest;
-import com.travelmarket.backend.dto.ResetPasswordRequest;
-import com.travelmarket.backend.dto.ForgotPasswordDevResponse;
 import com.travelmarket.backend.entity.PasswordResetToken;
 import com.travelmarket.backend.repository.PasswordResetTokenRepository;
+import com.travelmarket.backend.entity.EmailVerificationToken;
+import com.travelmarket.backend.repository.EmailVerificationTokenRepository;
+import org.springframework.beans.factory.annotation.Value;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -54,11 +51,23 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     private static final String REFRESH_COOKIE = "refresh_token";
     private static final Duration REFRESH_TTL_DEFAULT = Duration.ofDays(7);
     private static final Duration REFRESH_TTL_REMEMBER = Duration.ofDays(30);
     private static final Duration RESET_TTL = Duration.ofMinutes(15);
+
+    @Value("${app.email-verification.ttl-minutes:30}")
+    private long emailVerifyTtlMinutes;
+
+    @Value("${app.email-verification.dev-return:true}")
+    private boolean emailVerifyDevReturn;
+
+    private String generate6DigitCode() {
+        int n = (int)(Math.random() * 900000) + 100000;
+        return String.valueOf(n);
+    }
 
     private String sha256Hex(String raw) {
         try {
@@ -389,5 +398,119 @@ public class AuthController {
         // Optional but recommended:
         // If you have refreshTokenRepository, revoke all refresh tokens here too:
         refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
+    }
+
+    @PostMapping("/email/verify/request")
+    public EmailVerifyDevResponse requestEmailVerification(@Valid @RequestBody EmailVerifyRequest req) {
+
+        String email = req.getEmail().trim().toLowerCase();
+
+        // Do not enumerate emails. Always return 200 with a generic message.
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            return new EmailVerifyDevResponse("If the email exists, a verification message was issued.", null, null);
+        }
+
+        // If already verified, still return 200 (idempotent).
+        if (Boolean.TRUE.equals(user.getIsEmailVerified())) {
+            return new EmailVerifyDevResponse("If the email exists, a verification message was issued.", null, null);
+        }
+
+        // Create long token (for link verification)
+        String rawToken = UUID.randomUUID().toString() + "-" + UUID.randomUUID();
+        String tokenHash = sha256Hex(rawToken);
+
+        // Create short code (UI verification)
+        // Note: code verification should be rate-limited later to avoid brute force.
+        String rawCode = generate6DigitCode();
+        String codeHash = sha256Hex(rawCode);
+
+        EmailVerificationToken evt = new EmailVerificationToken();
+        evt.setUser(user);
+        evt.setTokenHash(tokenHash);
+        evt.setCodeHash(codeHash);
+        evt.setCreatedAtUtc(Instant.now());
+        evt.setExpiresAtUtc(Instant.now().plus(Duration.ofMinutes(emailVerifyTtlMinutes)));
+        evt.setUsedAtUtc(null);
+
+        emailVerificationTokenRepository.save(evt);
+
+        // Production plan (later):
+        // - Send email containing either:
+        //   1) Link with rawToken: https://your-frontend/verify-email?token=rawToken
+        //   2) Or show code rawCode in the email for UI entry.
+        //
+        // For now, return token/code only if dev-return is enabled.
+        if (!emailVerifyDevReturn) {
+            return new EmailVerifyDevResponse("If the email exists, a verification message was issued.", null, null);
+        }
+
+        return new EmailVerifyDevResponse(
+                "If the email exists, a verification message was issued.",
+                rawToken,
+                rawCode
+        );
+    }
+
+    @PostMapping("/email/verify/confirm-token")
+    public void confirmEmailByToken(@Valid @RequestBody EmailVerifyConfirmTokenRequest req) {
+
+        String rawToken = req.getToken().trim();
+        String tokenHash = sha256Hex(rawToken);
+
+        EmailVerificationToken evt = emailVerificationTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid verification token"));
+
+        if (evt.getUsedAtUtc() != null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verification token already used");
+        }
+
+        if (evt.getExpiresAtUtc().isBefore(Instant.now())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verification token expired");
+        }
+
+        User user = evt.getUser();
+        user.setIsEmailVerified(true);
+        userRepository.save(user);
+
+        evt.setUsedAtUtc(Instant.now());
+        emailVerificationTokenRepository.save(evt);
+    }
+
+    @PostMapping("/email/verify/confirm-code")
+    public void confirmEmailByCode(@Valid @RequestBody EmailVerifyConfirmCodeRequest req) {
+
+        String email = req.getEmail().trim().toLowerCase();
+        String rawCode = req.getCode().trim();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid verification code"));
+
+        String codeHash = sha256Hex(rawCode);
+
+        EmailVerificationToken evt = emailVerificationTokenRepository.findByCodeHash(codeHash)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid verification code"));
+
+        // Ensure the code belongs to this user
+        if (!evt.getUser().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid verification code");
+        }
+
+        if (evt.getUsedAtUtc() != null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verification code already used");
+        }
+
+        if (evt.getExpiresAtUtc().isBefore(Instant.now())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verification code expired");
+        }
+
+        user.setIsEmailVerified(true);
+        userRepository.save(user);
+
+        evt.setUsedAtUtc(Instant.now());
+        emailVerificationTokenRepository.save(evt);
+
+        // Note for later:
+        // You should rate-limit attempts to this endpoint (by IP/email) to prevent brute forcing 6-digit codes.
     }
 }
