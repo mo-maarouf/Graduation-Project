@@ -44,7 +44,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/health").permitAll()
 
                         // Public auth endpoints
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login",
+                                "/api/auth/refresh", "/api/auth/logout", "/api/auth/logout-all").permitAll()
 
                         // OAuth2 endpoints must be public
                         .requestMatchers("/api/auth/oauth2/**").permitAll()
