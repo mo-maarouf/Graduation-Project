@@ -14,6 +14,7 @@ import com.travelmarket.backend.entity.PasswordResetToken;
 import com.travelmarket.backend.repository.PasswordResetTokenRepository;
 import com.travelmarket.backend.entity.EmailVerificationToken;
 import com.travelmarket.backend.repository.EmailVerificationTokenRepository;
+import com.travelmarket.backend.service.EmailService;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -63,6 +64,14 @@ public class AuthController {
 
     @Value("${app.email-verification.dev-return:true}")
     private boolean emailVerifyDevReturn;
+
+    private final EmailService emailService;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
+
+    @Value("${app.password-reset.dev-return:false}")
+    private boolean passwordResetDevReturn;
 
     private String generate6DigitCode() {
         int n = (int)(Math.random() * 900000) + 100000;
@@ -358,8 +367,23 @@ public class AuthController {
 
         passwordResetTokenRepository.save(prt);
 
-        // Dev-friendly: return token so you can test reset via Postman.
-        // In production, you will send email instead and return null token.
+        // Send real email (Brevo SMTP via JavaMailSender)
+        String resetLink = frontendBaseUrl + "/reset-password?token=" + rawToken;
+        String subject = "Reset your password";
+        String body =
+                "We received a request to reset your password.\n\n"
+                        + "Reset link:\n" + resetLink + "\n\n"
+                        + "This link expires in 15 minutes.\n"
+                        + "If you did not request this, you can ignore this email.";
+
+        emailService.send(user.getEmail(), subject, body);
+
+        // Production: do not return token
+        if (!passwordResetDevReturn) {
+            return new ForgotPasswordDevResponse("If the email exists, a reset link was issued.", null);
+        }
+
+        // Dev fallback: return token for Postman testing only
         return new ForgotPasswordDevResponse("If the email exists, a reset link was issued.", rawToken);
     }
 
@@ -434,7 +458,17 @@ public class AuthController {
         evt.setUsedAtUtc(null);
 
         emailVerificationTokenRepository.save(evt);
+        // Send real email (Brevo SMTP)
+        String verifyLink = frontendBaseUrl + "/verify-email?token=" + rawToken;
 
+        String subject = "Verify your email";
+        String body =
+                "Please verify your email.\n\n"
+                        + "Verification link:\n" + verifyLink + "\n\n"
+                        + "Or enter this code in the app:\n" + rawCode + "\n\n"
+                        + "This token/code expires in " + emailVerifyTtlMinutes + " minutes.";
+
+        emailService.send(user.getEmail(), subject, body);
         // Production plan (later):
         // - Send email containing either:
         //   1) Link with rawToken: https://your-frontend/verify-email?token=rawToken
