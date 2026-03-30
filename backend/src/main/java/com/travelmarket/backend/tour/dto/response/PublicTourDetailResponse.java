@@ -17,6 +17,8 @@ import java.util.List;
 @Data
 public class PublicTourDetailResponse {
     private Long id;
+    private List<PublicActiveBookingResponse> activeBookings;
+    private List<PublicActiveWaitlistResponse> activeWaitlistEntries;
 
     // Content
     private String title;

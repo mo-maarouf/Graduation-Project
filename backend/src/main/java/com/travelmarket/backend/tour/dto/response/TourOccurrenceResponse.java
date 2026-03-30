@@ -14,6 +14,7 @@ public class TourOccurrenceResponse {
     private Integer seatsReserved;
     private Integer maxCapacity;     // copied from template for convenience
     private Integer availableSeats;  // maxCapacity - seatsReserved
+    private Integer waitlistCount;   // number of people currently on waitlist
     private Instant createdAtUtc;
     private Instant updatedAtUtc;
 }

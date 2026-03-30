@@ -195,7 +195,16 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
                       <span>{booking.peopleCount} Participants</span>
                    </div>
                 </div>
-                <div className="space-y-1 sm:col-span-2">
+                <div className="space-y-1">
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Duration</p>
+                   <div className="flex items-center gap-2 text-gray-900 dark:text-gray-300 font-bold">
+                      <Clock className="w-4 h-4 text-indigo-500" />
+                      <span>
+                        {booking.durationHours || 0}h {booking.durationMinutes || 0}m
+                      </span>
+                   </div>
+                </div>
+                <div className="space-y-1">
                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Booking Mode</p>
                    <div className="flex items-center gap-2 text-gray-900 dark:text-gray-300 font-bold">
                       <Zap className="w-4 h-4 text-amber-500" />

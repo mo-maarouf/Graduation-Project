@@ -15,4 +15,6 @@ public class AddTourMediaRequest {
 
     @NotNull(message = "Display order is required")
     private Integer displayOrder;
+
+    private String caption;
 }

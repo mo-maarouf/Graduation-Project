@@ -10,6 +10,7 @@ import com.travelmarket.backend.booking.repository.BookingRepository;
 import com.travelmarket.backend.booking.repository.WaitlistRepository;
 import com.travelmarket.backend.entity.GuideProfile;
 import com.travelmarket.backend.entity.TravelerProfile;
+import com.travelmarket.backend.entity.User;
 import com.travelmarket.backend.repository.GuideProfileRepository;
 import com.travelmarket.backend.repository.TravelerProfileRepository;
 import com.travelmarket.backend.tour.entity.TourOccurrence;
@@ -22,11 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.time.Instant;
+import java.math.RoundingMode;
+import java.time.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -37,12 +40,15 @@ public class BookingService {
     private final TourOccurrenceRepository occurrenceRepository;
     private final TravelerProfileRepository travelerRepository;
     private final GuideProfileRepository guideRepository;
+    private final ObjectMapper objectMapper;
 
     // ── Traveler: Create Booking ──────────────────────────────────────────────
 
     @Transactional
     public BookingResponse createBooking(String email, CreateBookingRequest request) {
         TravelerProfile traveler = resolveTraveler(email);
+        validateTravelerEligibility(traveler);
+        
         TourOccurrence occurrence = resolveOccurrence(request.getOccurrenceId());
 
         validateOccurrenceBookable(occurrence);
@@ -78,12 +84,8 @@ public class BookingService {
         booking.setCurrency(occurrence.getTemplate().getCurrency() != null
                 ? occurrence.getTemplate().getCurrency() : "USD");
 
-        // TODO (payment card): apply promo code, group discount, tier discount here
-        // and populate the corresponding snapshot fields before computing finalPrice.
-        // For now: finalPrice = basePrice × peopleCount, no discounts applied.
-        booking.setFinalPrice(basePrice.multiply(BigDecimal.valueOf(request.getPeopleCount())));
-
         // Snapshot platform fee (default 10% for now — feeds cancellation refund calc)
+        calculateAndSetFinalPrice(booking, occurrence.getTemplate());
         booking.setPlatformFeeSnapshot(booking.getFinalPrice().multiply(new BigDecimal("0.10")));
 
         // Resolve booking mode from the template and snapshot it onto the booking.
@@ -96,16 +98,12 @@ public class BookingService {
             // TODO (payment card): intercept here — status should become PENDING_PAYMENT
             // and only advance to CONFIRMED once Whish captures the payment.
             booking.setStatus(BookingStatus.Confirmed);
-            occurrence.setSeatsReserved(newTotalSeats);
-            // If we just consumed the last available seat, mark occurrence as FULL
-            if (newTotalSeats >= maxCapacity) {
-                occurrence.setStatus(TourOccurrenceStatus.FULL);
-            }
-            occurrenceRepository.save(occurrence);
+            reserveSeats(occurrence, newTotalSeats - occurrence.getSeatsReserved());
         } else {
-            // Request to Book: seat is NOT reserved until the guide explicitly confirms.
-            // Guide has 24 h to respond before the booking auto-expires (future automation card).
+            // Request to Book: seat is ALSO reserved immediately to prevent overbooking
+            // while the guide reviews. Guide has 24 h to respond.
             booking.setStatus(BookingStatus.PendingGuide);
+            reserveSeats(occurrence, newTotalSeats - occurrence.getSeatsReserved());
         }
 
         // Generate the check-in QR token. Encoded in the traveler's QR code display.
@@ -113,7 +111,8 @@ public class BookingService {
         // where it is validated against the guide's own occurrences server-side.
         booking.setQrCode(UUID.randomUUID().toString());
 
-        return mapToResponse(bookingRepository.save(booking));
+        Booking saved = bookingRepository.save(booking);
+        return mapToResponse(saved);
     }
 
     // ── Traveler: Read ────────────────────────────────────────────────────────
@@ -168,20 +167,13 @@ public class BookingService {
             booking.setRefundPercent(BigDecimal.ZERO);
         }
 
-        // Only CONFIRMED and IN_PROGRESS bookings hold reserved seats — release them
+        // CONFIRMED, PENDING_GUIDE, and IN_PROGRESS bookings hold reserved seats — release them
         if (booking.getStatus() == BookingStatus.Confirmed
+                || booking.getStatus() == BookingStatus.PendingGuide
                 || booking.getStatus() == BookingStatus.InProgress) {
-            TourOccurrence occurrence = booking.getOccurrence();
-            int released = Math.max(0, occurrence.getSeatsReserved() - booking.getPeopleCount());
-            occurrence.setSeatsReserved(released);
-            // If occurrence was FULL, it now has capacity again
-            if (occurrence.getStatus() == TourOccurrenceStatus.FULL) {
-                occurrence.setStatus(TourOccurrenceStatus.SCHEDULED);
-            }
-            occurrenceRepository.save(occurrence);
-
-            // Offer the freed seat to the next traveler in the waitlist queue
-            promoteFromWaitlist(occurrence);
+            
+            releaseSeats(booking.getOccurrence(), booking.getPeopleCount());
+            promoteFromWaitlist(booking.getOccurrence());
         }
 
         booking.setStatus(BookingStatus.Cancelled);
@@ -192,6 +184,181 @@ public class BookingService {
                         : "Cancelled by Traveler");
 
         return mapToResponse(bookingRepository.save(booking));
+    }
+
+    // ── Traveler: Update Booking ──────────────────────────────────────────────
+
+    @Transactional
+    public BookingResponse updateBooking(String email, Long id, UpdateBookingRequest request) {
+        Booking booking = resolveTravelerBooking(id, email);
+
+        if (booking.getStatus() == BookingStatus.Completed
+                || booking.getStatus() == BookingStatus.Cancelled
+                || booking.getStatus() == BookingStatus.Expired) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "This booking cannot be edited in its current state");
+        }
+
+        TourOccurrence oldOccurrence = booking.getOccurrence();
+        TourOccurrence newOccurrence = resolveOccurrence(request.getOccurrenceId());
+
+        int oldPeopleCount = booking.getPeopleCount();
+        int newPeopleCount = request.getPeopleCount();
+
+        boolean occurrenceChanged = !oldOccurrence.getId().equals(newOccurrence.getId());
+        boolean peopleCountChanged = oldPeopleCount != newPeopleCount;
+
+        if (!occurrenceChanged && !peopleCountChanged) {
+            return mapToResponse(booking);
+        }
+
+        if (occurrenceChanged) {
+            // Must be the same tour template
+            if (!newOccurrence.getTemplate().getId().equals(oldOccurrence.getTemplate().getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Cannot switch to a different tour");
+            }
+
+            // Release seats in old occurrence if they were reserved
+            if (booking.getStatus() == BookingStatus.Confirmed 
+                || booking.getStatus() == BookingStatus.PendingGuide
+                || booking.getStatus() == BookingStatus.InProgress) {
+                releaseSeats(oldOccurrence, oldPeopleCount);
+                promoteFromWaitlist(oldOccurrence);
+            }
+
+            // Try reserving in new occurrence
+            int available = newOccurrence.getCapacity() - newOccurrence.getSeatsReserved();
+            if (newPeopleCount <= available) {
+                booking.setOccurrence(newOccurrence);
+                booking.setPeopleCount(newPeopleCount);
+                if (booking.getStatus() == BookingStatus.Confirmed 
+                    || booking.getStatus() == BookingStatus.PendingGuide
+                    || booking.getStatus() == BookingStatus.InProgress) {
+                    reserveSeats(newOccurrence, newPeopleCount);
+                }
+            } else {
+                if (Boolean.TRUE.equals(request.getConfirmWaitlistTransition())) {
+                    booking.setOccurrence(newOccurrence);
+                    booking.setPeopleCount(newPeopleCount);
+                    moveToWaitlist(booking);
+                    return mapToResponse(booking); // Will show as Cancelled in history
+                } else {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Not enough spots on the new date. Move to waitlist?");
+                }
+            }
+        } else {
+            // peopleCountChanged only
+            int diff = newPeopleCount - oldPeopleCount;
+            if (diff < 0) {
+                // Releasing seats
+                if (booking.getStatus() == BookingStatus.Confirmed 
+                    || booking.getStatus() == BookingStatus.PendingGuide
+                    || booking.getStatus() == BookingStatus.InProgress) {
+                    releaseSeats(oldOccurrence, Math.abs(diff));
+                    promoteFromWaitlist(oldOccurrence);
+                }
+                booking.setPeopleCount(newPeopleCount);
+            } else {
+                // Increasing seats
+                int available = oldOccurrence.getCapacity() - oldOccurrence.getSeatsReserved();
+                if (diff <= available) {
+                    if (booking.getStatus() == BookingStatus.Confirmed 
+                        || booking.getStatus() == BookingStatus.PendingGuide
+                        || booking.getStatus() == BookingStatus.InProgress) {
+                        reserveSeats(oldOccurrence, diff);
+                    }
+                    booking.setPeopleCount(newPeopleCount);
+                } else {
+                    if (Boolean.TRUE.equals(request.getConfirmWaitlistTransition())) {
+                        booking.setPeopleCount(newPeopleCount);
+                        moveToWaitlist(booking);
+                        return mapToResponse(booking);
+                    } else {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Not enough spots to add more people. Move to waitlist?");
+                    }
+                }
+            }
+        }
+
+        // Snapshot new pricing
+        calculateAndSetFinalPrice(booking, newOccurrence.getTemplate());
+        booking.setPlatformFeeSnapshot(booking.getFinalPrice().multiply(new BigDecimal("0.10")));
+
+        return mapToResponse(bookingRepository.save(booking));
+    }
+
+    private void reserveSeats(TourOccurrence occurrence, int count) {
+        int newTotal = getSeatsReservedSafe(occurrence) + count;
+        int capacity = getEffectiveCapacity(occurrence);
+        
+        occurrence.setSeatsReserved(newTotal);
+        occurrence.setAvailableSeats(Math.max(0, capacity - newTotal));
+        
+        if (newTotal >= capacity) {
+            occurrence.setStatus(TourOccurrenceStatus.FULL);
+        }
+        occurrenceRepository.save(occurrence);
+    }
+
+    private void releaseSeats(TourOccurrence occurrence, int count) {
+        int newTotal = Math.max(0, getSeatsReservedSafe(occurrence) - count);
+        int capacity = getEffectiveCapacity(occurrence);
+        
+        occurrence.setSeatsReserved(newTotal);
+        occurrence.setAvailableSeats(Math.max(0, capacity - newTotal));
+        
+        if (occurrence.getStatus() == TourOccurrenceStatus.FULL) {
+            occurrence.setStatus(TourOccurrenceStatus.SCHEDULED);
+        }
+        occurrenceRepository.save(occurrence);
+    }
+
+    private int getEffectiveCapacity(TourOccurrence occurrence) {
+        if (occurrence.getCapacity() != null) return occurrence.getCapacity();
+        return occurrence.getTemplate().getMaxCapacity();
+    }
+
+    private int getSeatsReservedSafe(TourOccurrence occurrence) {
+        return occurrence.getSeatsReserved() != null ? occurrence.getSeatsReserved() : 0;
+    }
+
+    private int getWaitlistCountSafe(TourOccurrence occurrence) {
+        return occurrence.getWaitlistCount() != null ? occurrence.getWaitlistCount() : 0;
+    }
+
+    private void moveToWaitlist(Booking booking) {
+        // 1. Release seats if they were reserved!
+        if (booking.getStatus() == BookingStatus.Confirmed 
+                || booking.getStatus() == BookingStatus.PendingGuide
+                || booking.getStatus() == BookingStatus.InProgress) {
+            releaseSeats(booking.getOccurrence(), booking.getPeopleCount());
+            promoteFromWaitlist(booking.getOccurrence());
+        }
+
+        // 2. Cancel the current booking
+        booking.setStatus(BookingStatus.Cancelled);
+        booking.setCancelledAtUtc(Instant.now());
+        booking.setCancellationReason("Moved to waitlist during edit");
+        bookingRepository.save(booking);
+
+        // 2. Create waitlist entry
+        TourOccurrence occurrence = booking.getOccurrence();
+        Integer maxPos = waitlistRepository.findMaxPositionForOccurrence(occurrence);
+        int nextPosition = (maxPos == null ? 0 : maxPos) + 1;
+
+        WaitlistEntry entry = new WaitlistEntry();
+        entry.setOccurrence(occurrence);
+        entry.setTraveler(booking.getTraveler());
+        entry.setPosition(nextPosition);
+        entry.setPeopleCount(booking.getPeopleCount());
+        waitlistRepository.save(entry);
+
+        // 3. Update occurrence counter
+        occurrence.setWaitlistCount(getWaitlistCountSafe(occurrence) + booking.getPeopleCount());
+        occurrenceRepository.save(occurrence);
     }
 
     // ── Guide: Read ───────────────────────────────────────────────────────────
@@ -213,27 +380,21 @@ public class BookingService {
     @Transactional
     public GuideBookingResponse confirmBooking(String email, Long id) {
         Booking booking = resolveGuideBooking(id, email);
+        TourOccurrence occurrence = booking.getOccurrence();
 
         if (booking.getStatus() != BookingStatus.PendingGuide) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Booking is not pending guide confirmation");
         }
 
-        TourOccurrence occurrence = booking.getOccurrence();
-        int newTotal = occurrence.getSeatsReserved() + booking.getPeopleCount();
-
-        // Re-validate capacity — instant bookings from other travelers may have
-        // filled seats since this request-booking was submitted
-        if (newTotal > occurrence.getTemplate().getMaxCapacity()) {
+        // Seats are already reserved since the Request phase — we just transition the status.
+        // We still check if a race condition happened, though reserving during Request makes this rare.
+        if (occurrence.getSeatsReserved() > occurrence.getCapacity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Cannot confirm: occurrence is now at full capacity");
+                    "Cannot confirm: occurrence is now over capacity");
         }
-
+        
         booking.setStatus(BookingStatus.Confirmed);
-        occurrence.setSeatsReserved(newTotal);
-        if (newTotal >= occurrence.getTemplate().getMaxCapacity()) {
-            occurrence.setStatus(TourOccurrenceStatus.FULL);
-        }
         occurrenceRepository.save(occurrence);
 
         return mapToGuideResponse(bookingRepository.save(booking));
@@ -248,7 +409,9 @@ public class BookingService {
                     "Booking is not pending guide confirmation");
         }
 
-        // PENDING_GUIDE bookings never held reserved seats, so no seat adjustment needed
+        // Release the seats that were held during the PENDING_GUIDE phase
+        releaseSeats(booking.getOccurrence(), booking.getPeopleCount());
+        promoteFromWaitlist(booking.getOccurrence());
         booking.setStatus(BookingStatus.Cancelled);
         booking.setCancelledAtUtc(Instant.now());
         booking.setCancellationReason(
@@ -261,28 +424,6 @@ public class BookingService {
 
     // ── Guide: QR Check-in & Completion ──────────────────────────────────────
 
-    /**
-     * Check-in via booking database id.
-     * Used when the guide taps a booking directly from their dashboard list
-     * rather than scanning a QR code.
-     */
-    @Transactional
-    public GuideBookingResponse checkIn(String email, Long id) {
-        Booking booking = resolveGuideBooking(id, email);
-
-        if (booking.getStatus() != BookingStatus.Confirmed) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Booking must be CONFIRMED before check-in");
-        }
-
-        // CONFIRMED → IN_PROGRESS: guide has physically verified the traveler
-        // at the meeting point. checkedInAtUtc is used by the no-show card to
-        // determine if a traveler was actually present.
-        booking.setStatus(BookingStatus.InProgress);
-        booking.setCheckedInAtUtc(Instant.now());
-
-        return mapToGuideResponse(bookingRepository.save(booking));
-    }
 
     /**
      * Check-in via the UUID QR token scanned from the traveler's QR code.
@@ -301,10 +442,17 @@ public class BookingService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "No valid booking found for this QR code"));
 
+        if (booking.getStatus() == BookingStatus.InProgress || booking.getStatus() == BookingStatus.Completed) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Traveler is already checked in");
+        }
+
         if (booking.getStatus() != BookingStatus.Confirmed) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Booking must be CONFIRMED before check-in");
+                    "Booking must be Confirmed before check-in (current: " + booking.getStatus() + ")");
         }
+
+        validateCheckInTime(booking);
 
         booking.setStatus(BookingStatus.InProgress);
         booking.setCheckedInAtUtc(Instant.now());
@@ -327,6 +475,46 @@ public class BookingService {
         booking.setStatus(BookingStatus.Completed);
         booking.setCompletedAtUtc(Instant.now());
 
+        // Increment traveler's total completed trips
+        TravelerProfile traveler = booking.getTraveler();
+        traveler.setTotalCompletedTrips((traveler.getTotalCompletedTrips() != null ? traveler.getTotalCompletedTrips() : 0) + 1);
+        travelerRepository.save(traveler);
+
+        return mapToGuideResponse(bookingRepository.save(booking));
+    }
+
+    /**
+     * Mark a CONFIRMED booking as a No-Show.
+     * Transitions: CONFIRMED → CANCELLED.
+     * Releases seats and promotes waitlist.
+     * refundPercent is set to 0.
+     */
+    @Transactional
+    public GuideBookingResponse noShowBooking(String email, Long id, RejectBookingRequest request) {
+        Booking booking = resolveGuideBooking(id, email);
+
+        if (booking.getStatus() != BookingStatus.Confirmed) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only CONFIRMED bookings can be marked as No-Show");
+        }
+
+        validateNoShowTime(booking);
+
+        // Release seats since this was a confirmed booking
+        releaseSeats(booking.getOccurrence(), booking.getPeopleCount());
+        // Offer the freed seat to the next traveler in the waitlist queue
+        promoteFromWaitlist(booking.getOccurrence());
+
+        booking.setStatus(BookingStatus.Cancelled);
+        booking.setCancelledAtUtc(Instant.now());
+        booking.setCancellationReason(
+                request != null && request.getReason() != null && !request.getReason().isBlank()
+                        ? request.getReason()
+                        : "Traveler No-Show");
+
+        // Policy: No-Show = 0% refund (since it's < 24h)
+        booking.setRefundPercent(BigDecimal.ZERO);
+
         return mapToGuideResponse(bookingRepository.save(booking));
     }
 
@@ -335,13 +523,18 @@ public class BookingService {
     @Transactional
     public WaitlistResponse joinWaitlist(String email, JoinWaitlistRequest request) {
         TravelerProfile traveler = resolveTraveler(email);
-        TourOccurrence occurrence = resolveOccurrence(request.getOccurrenceId());
+        validateTravelerEligibility(traveler);
 
-        // Waitlist only makes sense for occurrences that are genuinely full
-        if (occurrence.getStatus() != TourOccurrenceStatus.FULL
-                && occurrence.getSeatsReserved() < occurrence.getTemplate().getMaxCapacity()) {
+        TourOccurrence occurrence = resolveOccurrence(request.getOccurrenceId());
+        int maxCapacity = occurrence.getTemplate().getMaxCapacity();
+        int availableSeats = maxCapacity - occurrence.getSeatsReserved();
+
+        // Waitlist only makes sense if the user's group CANNOT fit in the remaining spots.
+        // If their group size (e.g., 2) is less than or equal to available (e.g., 3), 
+        // they should book directly.
+        if (request.getPeopleCount() <= availableSeats) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "This occurrence is not full — you can book directly");
+                    "There are still " + availableSeats + " seats available — you can book directly");
         }
 
         // Prevent duplicate active waitlist entries for the same traveler + occurrence
@@ -372,7 +565,7 @@ public class BookingService {
 
         // Increment the denormalized waitlist counter on the occurrence
         occurrence.setWaitlistCount(
-                (occurrence.getWaitlistCount() != null ? occurrence.getWaitlistCount() : 0) + 1);
+                (occurrence.getWaitlistCount() != null ? occurrence.getWaitlistCount() : 0) + request.getPeopleCount());
         occurrenceRepository.save(occurrence);
 
         return mapToWaitlistResponse(waitlistRepository.save(entry));
@@ -401,7 +594,7 @@ public class BookingService {
         TourOccurrence occurrence = entry.getOccurrence();
         occurrence.setWaitlistCount(
                 Math.max(0, (occurrence.getWaitlistCount() != null
-                        ? occurrence.getWaitlistCount() : 1) - 1));
+                        ? occurrence.getWaitlistCount() : entry.getPeopleCount()) - entry.getPeopleCount()));
         occurrenceRepository.save(occurrence);
     }
 
@@ -422,10 +615,10 @@ public class BookingService {
         List<WaitlistEntry> queue = waitlistRepository
                 .findByOccurrenceAndDeletedAtUtcIsNullOrderByPositionAsc(occurrence);
 
-        int maxCapacity = occurrence.getTemplate().getMaxCapacity();
+        int maxCapacity = getEffectiveCapacity(occurrence);
 
         for (WaitlistEntry entry : queue) {
-            int available = maxCapacity - occurrence.getSeatsReserved();
+            int available = maxCapacity - getSeatsReservedSafe(occurrence);
 
             // Only promote if the entire requested group fits
             if (entry.getPeopleCount() <= available) {
@@ -434,13 +627,14 @@ public class BookingService {
                 promoted.setTraveler(entry.getTraveler());
                 promoted.setOccurrence(occurrence);
                 promoted.setPeopleCount(entry.getPeopleCount());
-                promoted.setBookingMode(BookingMode.Instant);
-                promoted.setStatus(BookingStatus.Confirmed); // TODO: PENDING_PAYMENT (payment card)
+                boolean isInstant = occurrence.getTemplate().getInstantBook() != null && occurrence.getTemplate().getInstantBook();
+                promoted.setBookingMode(isInstant ? BookingMode.Instant : BookingMode.Request);
+                promoted.setStatus(isInstant ? BookingStatus.Confirmed : BookingStatus.PendingGuide);
                 promoted.setBasePriceSnapshot(occurrence.getTemplate().getBasePrice());
                 promoted.setCurrency(occurrence.getTemplate().getCurrency() != null
                         ? occurrence.getTemplate().getCurrency() : "USD");
-                promoted.setFinalPrice(occurrence.getTemplate().getBasePrice()
-                        .multiply(BigDecimal.valueOf(entry.getPeopleCount())));
+                
+                calculateAndSetFinalPrice(promoted, occurrence.getTemplate());
                 promoted.setQrCode(UUID.randomUUID().toString());
 
                 // Snapshot platform fee (default 10% for now)
@@ -449,7 +643,10 @@ public class BookingService {
                 bookingRepository.save(promoted);
 
                 // Reserve the seats
-                occurrence.setSeatsReserved(occurrence.getSeatsReserved() + entry.getPeopleCount());
+                int newReserved = getSeatsReservedSafe(occurrence) + entry.getPeopleCount();
+                occurrence.setSeatsReserved(newReserved);
+                // Sync the new available_seats column
+                occurrence.setAvailableSeats(Math.max(0, getEffectiveCapacity(occurrence) - newReserved));
 
                 // Mark the waitlist entry as promoted and soft-delete it
                 entry.setPromoted(true);
@@ -458,11 +655,11 @@ public class BookingService {
                 waitlistRepository.save(entry);
 
                 // Decrement the waitlist counter
-                occurrence.setWaitlistCount(Math.max(0, occurrence.getWaitlistCount() - 1));
+                occurrence.setWaitlistCount(Math.max(0, getWaitlistCountSafe(occurrence) - entry.getPeopleCount()));
             }
 
             // If we're full again, we can stop early
-            if (occurrence.getSeatsReserved() >= maxCapacity) {
+            if (getSeatsReservedSafe(occurrence) >= maxCapacity) {
                 occurrence.setStatus(TourOccurrenceStatus.FULL);
                 break;
             }
@@ -518,6 +715,45 @@ public class BookingService {
         }
     }
 
+    private void validateTravelerEligibility(TravelerProfile traveler) {
+        var user = traveler.getUser();
+        
+        // Only users with the Traveler role are allowed to book
+        if (user.getRole() != User.Role.Traveler) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only travelers are allowed to book tours");
+        }
+
+        if (!Boolean.TRUE.equals(user.getIsEmailVerified())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Please verify your email address before booking");
+        }
+        if (!Boolean.TRUE.equals(user.getProfileCompleted())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Please complete your profile before booking");
+        }
+    }
+
+    private void validateCheckInTime(Booking booking) {
+        Instant now = Instant.now();
+        Instant startTime = booking.getOccurrence().getStartTimeUtc();
+        // Allow check-in up to 2 hours before the tour starts
+        if (now.isBefore(startTime.minus(Duration.ofHours(2)))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Check-in is only available 2 hours before the tour starts");
+        }
+    }
+
+    private void validateNoShowTime(Booking booking) {
+        Instant now = Instant.now();
+        Instant startTime = booking.getOccurrence().getStartTimeUtc();
+        // Marking as No-Show is only available after the tour starts
+        if (now.isBefore(startTime)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Marking as No-Show is only available after the tour starts");
+        }
+    }
+
     private Booking resolveTravelerBooking(Long id, String email) {
         return bookingRepository.findByIdAndTravelerUserEmail(id, email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -530,6 +766,90 @@ public class BookingService {
                         "Booking not found"));
     }
 
+    private void calculateAndSetFinalPrice(Booking booking, com.travelmarket.backend.tour.entity.TourTemplate template) {
+        BigDecimal basePrice = booking.getBasePriceSnapshot();
+        if (basePrice == null) basePrice = template.getBasePrice();
+        
+        int peopleCount = booking.getPeopleCount();
+        BigDecimal subtotal = basePrice.multiply(BigDecimal.valueOf(peopleCount));
+        BigDecimal finalPrice = subtotal;
+
+        // 1. Apply group discount if applicable
+        if (Boolean.TRUE.equals(template.getHasGroupDiscount()) 
+                && template.getGroupDiscountThreshold() != null 
+                && peopleCount >= template.getGroupDiscountThreshold()) {
+            
+            BigDecimal discountPercent = template.getGroupDiscountPercent() != null 
+                    ? template.getGroupDiscountPercent() 
+                    : BigDecimal.ZERO;
+            
+            if (discountPercent.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal discount = subtotal.multiply(discountPercent.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+                finalPrice = subtotal.subtract(discount);
+                booking.setGroupDiscountPercentSnapshot(discountPercent);
+            }
+        }
+
+        // 2. Apply Dynamic Pricing (Weekends and Holidays)
+        finalPrice = applyDynamicPricing(finalPrice, template, booking.getOccurrence().getStartTimeUtc());
+        
+        booking.setFinalPrice(finalPrice.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private BigDecimal applyDynamicPricing(BigDecimal price, com.travelmarket.backend.tour.entity.TourTemplate template, Instant tourDate) {
+        String json = template.getDynamicPricing();
+        if (json == null || json.isEmpty()) return price;
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            double weekendMultiplier = root.path("weekendMultiplier").asDouble(1.0);
+            double holidayMultiplier = root.path("holidayMultiplier").asDouble(1.0);
+
+            // Legacy & Frontend consistency check: 
+            // If the multiplier is e.g. 120 (percent), we treat it as 1.2
+            if (weekendMultiplier > 5.0) weekendMultiplier /= 100.0;
+            if (holidayMultiplier > 5.0) holidayMultiplier /= 100.0;
+            
+            ZonedDateTime zdt = tourDate.atZone(ZoneId.of("UTC")); // Or "Asia/Beirut" if preferred
+            DayOfWeek dow = zdt.getDayOfWeek();
+            int month = zdt.getMonthValue();
+            int day = zdt.getDayOfMonth();
+
+            // 1. Check for Holidays (Fixed Lebanese Holidays)
+            boolean isHoliday = isFixedLebaneseHoliday(month, day);
+            if (isHoliday && holidayMultiplier != 1.0) {
+                // Safety: prevent insane multipliers (cap at 5.0 for now)
+                double safeMultiplier = Math.min(holidayMultiplier, 5.0);
+                return price.multiply(BigDecimal.valueOf(safeMultiplier));
+            }
+
+            // 2. Check for Weekends (Sat/Sun)
+            if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && weekendMultiplier != 1.0) {
+                double safeMultiplier = Math.min(weekendMultiplier, 5.0);
+                return price.multiply(BigDecimal.valueOf(safeMultiplier));
+            }
+
+        } catch (Exception e) {
+            // Log error or ignore parse errors
+        }
+        return price;
+    }
+
+    private boolean isFixedLebaneseHoliday(int month, int day) {
+        // Standard non-working days in Lebanon
+        if (month == 1 && day == 1) return true;   // New Year
+        if (month == 1 && day == 6) return true;   // Armenian Christmas
+        if (month == 2 && day == 9) return true;   // St Maron
+        if (month == 3 && day == 25) return true;  // Annunciation
+        if (month == 5 && day == 1) return true;   // Labour Day
+        if (month == 5 && day == 25) return true;  // Resistance & Liberation
+        if (month == 8 && day == 15) return true;  // Assumption
+        if (month == 11 && day == 1) return true;  // All Saints
+        if (month == 11 && day == 22) return true; // Independence
+        if (month == 12 && day == 25) return true; // Christmas
+        return false;
+    }
+
     // ── DTO Mapping ───────────────────────────────────────────────────────────
 
     private BookingResponse mapToResponse(Booking b) {
@@ -537,6 +857,7 @@ public class BookingService {
                 .id(b.getId())
                 .occurrenceId(b.getOccurrence().getId())
                 .tourTitle(b.getOccurrence().getTemplate().getTitle())
+                .tourId(b.getOccurrence().getTemplate().getId())
                 .tourCoverImageUrl(null) // TODO: resolve from TourMedia in media card
                 .startTimeUtc(b.getOccurrence().getStartTimeUtc())
                 .endTimeUtc(b.getOccurrence().getEndTimeUtc())
@@ -557,6 +878,7 @@ public class BookingService {
                 .cancellationReason(b.getCancellationReason())
                 .refundPercent(b.getRefundPercent())
                 .cancelledAtUtc(b.getCancelledAtUtc())
+                .waiverSigned(b.getWaiverSigned())
                 .createdAtUtc(b.getCreatedAtUtc())
                 .build();
     }
@@ -566,12 +888,17 @@ public class BookingService {
                 .id(b.getId())
                 .occurrenceId(b.getOccurrence().getId())
                 .tourTitle(b.getOccurrence().getTemplate().getTitle())
+                .tourId(b.getOccurrence().getTemplate().getId())
                 .startTimeUtc(b.getOccurrence().getStartTimeUtc())
                 .endTimeUtc(b.getOccurrence().getEndTimeUtc())
                 .status(b.getStatus().name())
                 .bookingMode(b.getBookingMode() != null ? b.getBookingMode().name() : null)
                 .peopleCount(b.getPeopleCount())
+                .durationHours(b.getOccurrence().getTemplate().getDurationHours())
+                .durationMinutes(b.getOccurrence().getTemplate().getDurationMinutes())
                 .finalPrice(b.getFinalPrice())
+                .platformFee(b.getPlatformFeeSnapshot() != null ? b.getPlatformFeeSnapshot() : java.math.BigDecimal.ZERO)
+                .netEarnings(b.getFinalPrice().subtract(b.getPlatformFeeSnapshot() != null ? b.getPlatformFeeSnapshot() : java.math.BigDecimal.ZERO))
                 .currency(b.getCurrency())
                 .cancellationReason(b.getCancellationReason())
                 .checkedInAtUtc(b.getCheckedInAtUtc())

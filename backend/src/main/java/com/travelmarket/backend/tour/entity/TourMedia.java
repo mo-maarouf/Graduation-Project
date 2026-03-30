@@ -50,6 +50,10 @@ public class TourMedia {
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
 
+    // Optional caption for the media item
+    @Column(length = 255)
+    private String caption;
+
     // ── Timestamps ─────────────────────────────────────────────────────────────
 
     @Column(name = "created_at_utc", nullable = false, updatable = false)

@@ -55,6 +55,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("excludedStatuses") List<BookingStatus> excludedStatuses
     );
 
+    /**
+     * Find any active booking the traveler has for any occurrence of this tour.
+     * Used for the "Edit Booking" button state on the tour page.
+     */
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.traveler.user.email = :email
+              AND b.occurrence.template.id = :templateId
+              AND b.status NOT IN :excludedStatuses
+              AND b.deletedAtUtc IS NULL
+            """)
+    List<Booking> findActiveByTravelerAndTemplate(
+            @Param("email") String email,
+            @Param("templateId") Long templateId,
+            @Param("excludedStatuses") List<BookingStatus> excludedStatuses
+    );
+
     // ── Guide queries ───────────────────────────────────────────────────────
 
     /**

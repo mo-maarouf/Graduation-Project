@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -29,6 +29,7 @@ import {
   Info
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import { 
   getAdminPendingTours, 
   adminApproveTour, 
@@ -137,6 +138,7 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
     try {
       await adminApproveTour(tour.id)
       toast.success('Tour approved and published!')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       onAction()
       onClose()
     } catch (err: any) {
@@ -155,6 +157,7 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
     try {
       await adminRejectTour(tour.id, rejectReason)
       toast.success('Tour rejected')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       onAction()
       onClose()
     } catch (err: any) {
@@ -567,10 +570,12 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
 // ============================================================================
 
 export default function AdminTourModerationPage() {
-  const [tours, setTours] = useState<TourTemplateResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedTour, setSelectedTour] = useState<TourTemplateResponse | null>(null)
+  const [tours, setTours] = React.useState<TourTemplateResponse[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [searchTerm, setSearchTerm] = React.useState('')
+  const [selectedTour, setSelectedTour] = React.useState<TourTemplateResponse | null>(null)
+
+  useBadgeReset('admin-tours')
 
   const fetchTours = async () => {
     try {
@@ -584,11 +589,11 @@ export default function AdminTourModerationPage() {
     }
   }
 
-  useEffect(() => {
+  React.useEffect(() => {
     fetchTours()
   }, [])
 
-  const filteredTours = useMemo(() => {
+  const filteredTours = React.useMemo(() => {
     return tours.filter(t => 
       t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.locationName?.toLowerCase().includes(searchTerm.toLowerCase())

@@ -1,25 +1,24 @@
 // ============================================================================
-// BOOKING DETAILS PAGE - CARD 18
+// GUIDE ON-TOUR BOOKING DETAIL — WIRED TO REAL BACKEND
 // ============================================================================
-// LOCATION: /frontend/src/app/dashboard/guide/on-tour/[bookingId]/page.tsx
-// 
-// PURPOSE: View detailed information for a specific booking during tour
-// 
-// FEATURES:
-// - Traveler details and contact info
-// - Booking status and check-in time
-// - Special requests
-// - Emergency contact
-// - QR code display
-// - Check-in/No-show actions
+// LOCATION: /frontend/app/dashboard/guide/on-tour/[bookingId]/page.tsx
+//
+// PURPOSE: View detailed booking info during active tour — check in a single
+//          traveler, see contact details, and view booking metadata.
+//
+// DATA SOURCE: getGuideBooking(id) → GuideBookingResponse
+// MUTATIONS: checkInBooking(id) → CONFIRMED → IN_PROGRESS
+//
+// No-show: disabled (future dispute card)
+// Emergency contact / special requests: not in GuideBookingResponse yet
+//   (these can be added when the traveler profile card exposes them)
 // ============================================================================
 
 'use client'
 
-import { useState, use } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import Link from 'next/link'
+import toast from 'react-hot-toast'
 import {
   ArrowLeft,
   User,
@@ -28,211 +27,61 @@ import {
   Calendar,
   Clock,
   Users,
-  MapPin,
   MessageSquare,
   CheckCircle,
   XCircle,
   AlertCircle,
   QrCode,
-  Download,
-  Printer,
-  Shield,
-  HelpCircle,
   Info,
-  Edit,
   Flag,
-  MoreVertical
+  MoreVertical,
+  Loader2
 } from 'lucide-react'
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface BookingDetails {
-  id: string
-  bookingReference: string
-  tourId: string
-  tourTitle: string
-  tourImage: string
-  tourDate: string
-  tourTime: string
-  meetingPoint: {
-    name: string
-    address: string
-    instructions?: string
-  }
-  traveler: {
-    id: string
-    name: string
-    avatar?: string
-    email: string
-    phone: string
-    nationality?: string
-    languages?: string[]
-  }
-  bookingDetails: {
-    peopleCount: number
-    totalPrice: number
-    currency: string
-    bookingMode: 'instant' | 'request'
-    status: 'confirmed' | 'pending' | 'checked-in' | 'no-show' | 'cancelled'
-    checkInTime?: string
-    bookedAt: string
-  }
-  specialRequests?: string
-  dietaryRestrictions?: string[]
-  emergencyContact: {
-    name: string
-    phone: string
-    relationship: string
-  }
-  qrCode: {
-    code: string
-    url: string
-  }
-  notes?: {
-    id: string
-    author: string
-    content: string
-    createdAt: string
-  }[]
-}
-
-// ============================================================================
-// MOCK DATA
-// ============================================================================
-
-const MOCK_BOOKING_DETAILS: Record<string, BookingDetails> = {
-  'b1': {
-    id: 'b1',
-    bookingReference: 'SH-1234-5678',
-    tourId: '1',
-    tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-    tourImage: '/images/tours/istanbul-ottoman.jpg',
-    tourDate: '2026-03-15',
-    tourTime: '09:00',
-    meetingPoint: {
-      name: 'Sultanahmet Square Fountain',
-      address: 'Sultanahmet Meydanı, Fatih/İstanbul',
-      instructions: 'Look for the guide holding an orange sign'
-    },
-    traveler: {
-      id: 't1',
-      name: 'Ahmed Khan',
-      avatar: '/images/travelers/ahmed.jpg',
-      email: 'ahmed.khan@example.com',
-      phone: '+90 555 111 2233',
-      nationality: 'United Arab Emirates',
-      languages: ['Arabic', 'English']
-    },
-    bookingDetails: {
-      peopleCount: 2,
-      totalPrice: 178,
-      currency: 'USD',
-      bookingMode: 'instant',
-      status: 'confirmed',
-      bookedAt: '2026-02-20T10:30:00Z'
-    },
-    specialRequests: 'Vegetarian food options needed. Also need wheelchair accessibility.',
-    dietaryRestrictions: ['Vegetarian', 'No nuts'],
-    emergencyContact: {
-      name: 'Fatima Khan',
-      phone: '+90 555 111 2244',
-      relationship: 'Spouse'
-    },
-    qrCode: {
-      code: 'QR-AHMED-123',
-      url: '/qr/booking-b1.png'
-    },
-    notes: [
-      {
-        id: 'n1',
-        author: 'Mehmet (Guide)',
-        content: 'Traveler requested vegetarian lunch. Confirmed with restaurant.',
-        createdAt: '2026-03-14T09:15:00Z'
-      }
-    ]
-  },
-  'b2': {
-    id: 'b2',
-    bookingReference: 'SH-2345-6789',
-    tourId: '1',
-    tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-    tourImage: '/images/tours/istanbul-ottoman.jpg',
-    tourDate: '2026-03-15',
-    tourTime: '09:00',
-    meetingPoint: {
-      name: 'Sultanahmet Square Fountain',
-      address: 'Sultanahmet Meydanı, Fatih/İstanbul',
-      instructions: 'Look for the guide holding an orange sign'
-    },
-    traveler: {
-      id: 't2',
-      name: 'Omar Farooq',
-      email: 'omar.f@example.com',
-      phone: '+90 555 222 3344',
-      nationality: 'United Kingdom'
-    },
-    bookingDetails: {
-      peopleCount: 1,
-      totalPrice: 89,
-      currency: 'USD',
-      bookingMode: 'instant',
-      status: 'checked-in',
-      checkInTime: '08:45',
-      bookedAt: '2026-02-25T14:20:00Z'
-    },
-    emergencyContact: {
-      name: 'Sarah Farooq',
-      phone: '+90 555 222 3355',
-      relationship: 'Sister'
-    },
-    qrCode: {
-      code: 'QR-OMAR-456',
-      url: '/qr/booking-b2.png'
-    }
-  }
-}
+import { getGuideBooking, checkInBooking } from '@/src/lib/api/tours'
+import { BookingStatus, GuideBookingResponse } from '@/src/lib/types/tour.types'
 
 // ============================================================================
 // STATUS BADGE COMPONENT
 // ============================================================================
 
 interface StatusBadgeProps {
-  status: BookingDetails['bookingDetails']['status']
+  status: string
 }
 
+// Maps backend BookingStatus to a visual badge.
+// Uses the exact status string from the API — no local enum remapping needed.
 function StatusBadge({ status }: StatusBadgeProps) {
-  const config = {
-    confirmed: {
+  const config: Record<string, { bg: string; text: string; border: string; icon: typeof CheckCircle; label: string }> = {
+    [BookingStatus.Confirmed]: {
       bg: 'bg-blue-100 dark:bg-blue-950/30',
       text: 'text-blue-700 dark:text-blue-300',
       border: 'border-blue-200 dark:border-blue-800',
       icon: CheckCircle,
       label: 'Confirmed'
     },
-    pending: {
+    [BookingStatus.PendingGuide]: {
       bg: 'bg-amber-100 dark:bg-amber-950/30',
       text: 'text-amber-700 dark:text-amber-300',
       border: 'border-amber-200 dark:border-amber-800',
       icon: Clock,
       label: 'Pending'
     },
-    'checked-in': {
+    [BookingStatus.InProgress]: {
       bg: 'bg-emerald-100 dark:bg-emerald-950/30',
       text: 'text-emerald-700 dark:text-emerald-300',
       border: 'border-emerald-200 dark:border-emerald-800',
       icon: CheckCircle,
       label: 'Checked In'
     },
-    'no-show': {
-      bg: 'bg-red-100 dark:bg-red-950/30',
-      text: 'text-red-700 dark:text-red-300',
-      border: 'border-red-200 dark:border-red-800',
-      icon: XCircle,
-      label: 'No Show'
+    [BookingStatus.Completed]: {
+      bg: 'bg-purple-100 dark:bg-purple-950/30',
+      text: 'text-purple-700 dark:text-purple-300',
+      border: 'border-purple-200 dark:border-purple-800',
+      icon: CheckCircle,
+      label: 'Completed'
     },
-    cancelled: {
+    [BookingStatus.Cancelled]: {
       bg: 'bg-gray-100 dark:bg-gray-800',
       text: 'text-gray-700 dark:text-gray-300',
       border: 'border-gray-200 dark:border-gray-700',
@@ -241,7 +90,16 @@ function StatusBadge({ status }: StatusBadgeProps) {
     }
   }
 
-  const { bg, text, border, icon: Icon, label } = config[status]
+  // Fallback for unknown statuses (e.g. PendingPayment, Expired)
+  const fallback = {
+    bg: 'bg-gray-100 dark:bg-gray-800',
+    text: 'text-gray-700 dark:text-gray-300',
+    border: 'border-gray-200 dark:border-gray-700',
+    icon: Clock,
+    label: status
+  }
+
+  const { bg, text, border, icon: Icon, label } = config[status] || fallback
 
   return (
     <span className={`
@@ -273,14 +131,62 @@ interface BookingDetailsPageProps {
 export default function BookingDetailsPage({ params }: BookingDetailsPageProps) {
   const unwrappedParams = use(params)
   const bookingId = unwrappedParams.bookingId
-  
+
   const router = useRouter()
-  const [booking, setBooking] = useState<BookingDetails | null>(
-    MOCK_BOOKING_DETAILS[bookingId] || null
-  )
-  const [showQR, setShowQR] = useState(false)
-  const [showNotes, setShowNotes] = useState(false)
-  const [newNote, setNewNote] = useState('')
+  const [booking, setBooking] = useState<GuideBookingResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  // ── Load booking from backend on mount ──────────────────────────────────
+  // If the booking doesn't belong to this guide, backend returns 404
+  // and we redirect back to the on-tour list.
+
+  const fetchBooking = async () => {
+    setIsLoading(true)
+    try {
+      const res = await getGuideBooking(Number(bookingId))
+      setBooking(res.data)
+    } catch {
+      toast.error('Booking not found or access denied')
+      router.push('/dashboard/guide/on-tour')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchBooking()
+  }, [bookingId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Check in this traveler ──────────────────────────────────────────────
+  // Only works when booking status is 'Confirmed'.
+  // Backend transitions: CONFIRMED → IN_PROGRESS and sets checkedInAtUtc.
+
+  const handleCheckIn = async () => {
+    if (!booking) return
+    setIsProcessing(true)
+    try {
+      await checkInBooking(booking.id)
+      toast.success('Traveler checked in!')
+      fetchBooking() // Refresh to show InProgress status and checkedInAtUtc
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Check-in failed')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // ── Loading state ──────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  // ── Not found state ────────────────────────────────────────────────────
 
   if (!booking) {
     return (
@@ -292,7 +198,7 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
               Booking Not Found
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              The booking you're looking for doesn't exist.
+              The booking you&apos;re looking for doesn&apos;t exist.
             </p>
             <button
               onClick={() => router.back()}
@@ -314,61 +220,17 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
     )
   }
 
-  const handleCheckIn = () => {
-    setBooking(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        bookingDetails: {
-          ...prev.bookingDetails,
-          status: 'checked-in',
-          checkInTime: new Date().toLocaleTimeString()
-        }
-      }
-    })
-  }
-
-  const handleMarkNoShow = () => {
-    setBooking(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        bookingDetails: {
-          ...prev.bookingDetails,
-          status: 'no-show'
-        }
-      }
-    })
-  }
-
-  const handleAddNote = () => {
-    if (!newNote.trim()) return
-
-    setBooking(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        notes: [
-          ...(prev.notes || []),
-          {
-            id: Date.now().toString(),
-            author: 'You (Guide)',
-            content: newNote,
-            createdAt: new Date().toISOString()
-          }
-        ]
-      }
-    })
-    setNewNote('')
-  }
+  // Format dates for display
+  const startDate = new Date(booking.startTimeUtc)
+  const bookingDate = new Date(booking.createdAtUtc)
 
   return (
     <>
       {/* Page offset */}
       <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
-        
+
         <div className="container-safe mx-auto max-w-5xl py-8 sm:py-10">
-          
+
           {/* Back button */}
           <button
             onClick={() => router.back()}
@@ -391,28 +253,14 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   Booking Details
                 </h1>
-                <StatusBadge status={booking.bookingDetails.status} />
+                <StatusBadge status={booking.status} />
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Reference: {booking.bookingReference}
+                Booking #{booking.id} • {booking.tourTitle}
               </p>
             </div>
 
             <div className="flex gap-2">
-              <button
-                onClick={() => setShowQR(!showQR)}
-                className="
-                  px-4 py-2
-                  bg-blue-600 hover:bg-blue-700
-                  text-white
-                  rounded-lg
-                  transition-colors
-                  flex items-center gap-2
-                "
-              >
-                <QrCode className="w-4 h-4" />
-                {showQR ? 'Hide QR' : 'Show QR'}
-              </button>
               <button className="
                 p-2
                 bg-gray-100 dark:bg-gray-800
@@ -426,44 +274,6 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
             </div>
           </div>
 
-          {/* QR Code Display */}
-          {showQR && (
-            <div className="mb-6 p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-center">
-              <div className="inline-block p-4 bg-white rounded-lg shadow-lg mb-4">
-                <QrCode className="w-32 h-32 text-gray-900" />
-              </div>
-              <p className="text-sm font-mono text-gray-600 dark:text-gray-400 mb-3">
-                {booking.qrCode.code}
-              </p>
-              <div className="flex gap-2 justify-center">
-                <button className="
-                  px-4 py-2
-                  bg-gray-100 dark:bg-gray-800
-                  text-gray-700 dark:text-gray-300
-                  rounded-lg
-                  hover:bg-gray-200 dark:hover:bg-gray-700
-                  transition-colors
-                  flex items-center gap-2
-                ">
-                  <Download className="w-4 h-4" />
-                  Download
-                </button>
-                <button className="
-                  px-4 py-2
-                  bg-gray-100 dark:bg-gray-800
-                  text-gray-700 dark:text-gray-300
-                  rounded-lg
-                  hover:bg-gray-200 dark:hover:bg-gray-700
-                  transition-colors
-                  flex items-center gap-2
-                ">
-                  <Printer className="w-4 h-4" />
-                  Print
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Traveler Info */}
@@ -476,28 +286,19 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                 p-6
               ">
                 <div className="flex items-start gap-4">
-                  {/* Avatar */}
+                  {/* Avatar placeholder */}
                   <div className="relative">
                     <div className="
                       w-16 h-16
                       rounded-full
                       bg-gray-100 dark:bg-gray-800
                       overflow-hidden
+                      flex items-center justify-center
                     ">
-                      {booking.traveler.avatar ? (
-                        <Image
-                          src={booking.traveler.avatar}
-                          alt={booking.traveler.name}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <User className="w-8 h-8 text-gray-400" />
-                        </div>
-                      )}
+                      <User className="w-8 h-8 text-gray-400" />
                     </div>
-                    {booking.bookingDetails.status === 'checked-in' && (
+                    {/* Green dot if checked in */}
+                    {(booking.status === BookingStatus.InProgress || booking.status === BookingStatus.Completed) && (
                       <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-900" />
                     )}
                   </div>
@@ -505,31 +306,31 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                   {/* Info */}
                   <div className="flex-1">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                      {booking.traveler.name}
+                      {booking.traveler?.fullName || 'Unknown Traveler'}
                     </h2>
                     <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-4 h-4" />
-                        {booking.traveler.email}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        {booking.traveler.phone}
-                      </span>
+                      {booking.traveler?.email && (
+                        <span className="flex items-center gap-1">
+                          <Mail className="w-4 h-4" />
+                          {booking.traveler.email}
+                        </span>
+                      )}
+                      {booking.traveler?.phoneE164 && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-4 h-4" />
+                          {booking.traveler.phoneE164}
+                        </span>
+                      )}
                     </div>
-                    {booking.traveler.nationality && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        <span className="font-medium">Nationality:</span> {booking.traveler.nationality}
-                      </p>
-                    )}
                   </div>
                 </div>
 
-                {/* Action buttons (if pending) */}
-                {booking.bookingDetails.status === 'confirmed' && (
+                {/* Action buttons — only show check-in when booking is Confirmed */}
+                {booking.status === BookingStatus.Confirmed && (
                   <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
                     <button
                       onClick={handleCheckIn}
+                      disabled={isProcessing}
                       className="
                         flex-1
                         px-4 py-2
@@ -538,147 +339,71 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                         rounded-lg
                         transition-colors
                         flex items-center justify-center gap-2
+                        disabled:opacity-50
                       "
                     >
-                      <CheckCircle className="w-4 h-4" />
+                      {isProcessing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4" />
+                      )}
                       Check In
                     </button>
+                    {/* No-show — disabled (future dispute/no-show card) */}
                     <button
-                      onClick={handleMarkNoShow}
+                      disabled
+                      title="No-show reporting coming soon"
                       className="
                         flex-1
                         px-4 py-2
-                        bg-red-600 hover:bg-red-700
+                        bg-red-600/50
+                        text-white/50 font-medium
+                        rounded-lg
+                        cursor-not-allowed
+                        flex items-center justify-center gap-2
+                      "
+                    >
+                      <XCircle className="w-4 h-4" />
+                      No Show
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (booking.traveler?.email) {
+                          window.location.href = `mailto:${booking.traveler.email}`
+                        }
+                      }}
+                      className="
+                        px-4 py-2
+                        bg-blue-600 hover:bg-blue-700
                         text-white font-medium
                         rounded-lg
                         transition-colors
                         flex items-center justify-center gap-2
                       "
                     >
-                      <XCircle className="w-4 h-4" />
-                      Mark No Show
-                    </button>
-                    <button className="
-                      px-4 py-2
-                      bg-blue-600 hover:bg-blue-700
-                      text-white font-medium
-                      rounded-lg
-                      transition-colors
-                      flex items-center justify-center gap-2
-                    ">
                       <MessageSquare className="w-4 h-4" />
                       Message
                     </button>
                   </div>
                 )}
-              </div>
 
-              {/* Special Requests */}
-              {booking.specialRequests && (
-                <div className="
-                  bg-amber-50 dark:bg-amber-950/30
-                  border border-amber-200 dark:border-amber-800
-                  rounded-xl
-                  p-6
-                ">
-                  <h3 className="font-semibold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    Special Requests
-                  </h3>
-                  <p className="text-amber-700 dark:text-amber-400 mb-3">
-                    {booking.specialRequests}
-                  </p>
-                  {booking.dietaryRestrictions && (
-                    <div className="flex flex-wrap gap-2">
-                      {booking.dietaryRestrictions.map((restriction, index) => (
-                        <span
-                          key={index}
-                          className="
-                            px-2 py-1
-                            bg-amber-100 dark:bg-amber-900/50
-                            text-amber-700 dark:text-amber-300
-                            text-xs
-                            rounded-full
-                          "
-                        >
-                          {restriction}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Notes */}
-              <div className="
-                bg-white dark:bg-gray-900
-                border border-gray-200 dark:border-gray-800
-                rounded-xl
-                p-6
-              ">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  Notes
-                </h3>
-
-                {/* Notes list */}
-                <div className="space-y-3 mb-4">
-                  {booking.notes && booking.notes.length > 0 ? (
-                    booking.notes.map(note => (
-                      <div key={note.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                            {note.author}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(note.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {note.content}
-                        </p>
+                {/* Check-in and completion timestamps — proves the new fields are rendered */}
+                {(booking.checkedInAtUtc || booking.completedAtUtc) && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                    {booking.checkedInAtUtc && (
+                      <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Checked in at {new Date(booking.checkedInAtUtc).toLocaleTimeString()}</span>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                      No notes yet
-                    </p>
-                  )}
-                </div>
-
-                {/* Add note */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Add a note..."
-                    className="
-                      flex-1
-                      px-3 py-2
-                      bg-gray-50 dark:bg-gray-800
-                      border border-gray-200 dark:border-gray-700
-                      rounded-lg
-                      text-gray-900 dark:text-white
-                      placeholder-gray-500 dark:placeholder-gray-400
-                      focus:outline-none focus:ring-2 focus:ring-blue-500
-                    "
-                  />
-                  <button
-                    onClick={handleAddNote}
-                    disabled={!newNote.trim()}
-                    className="
-                      px-4 py-2
-                      bg-blue-600 hover:bg-blue-700
-                      text-white
-                      rounded-lg
-                      transition-colors
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    "
-                  >
-                    Add
-                  </button>
-                </div>
+                    )}
+                    {booking.completedAtUtc && (
+                      <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Completed at {new Date(booking.completedAtUtc).toLocaleTimeString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -701,90 +426,48 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                     <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
                     <div>
                       <p className="text-sm text-gray-900 dark:text-white">
-                        {new Date(booking.tourDate).toLocaleDateString('en-US', {
+                        {startDate.toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'long',
                           day: 'numeric'
                         })}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {booking.tourTime}
+                        {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {booking.endTimeUtc && ` - ${new Date(booking.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                       </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {booking.meetingPoint.name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {booking.meetingPoint.address}
-                      </p>
-                      {booking.meetingPoint.instructions && (
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {booking.meetingPoint.instructions}
-                        </p>
-                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-900 dark:text-white">
-                      {booking.bookingDetails.peopleCount} people
+                      {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-900 dark:text-white">
-                      Booked: {new Date(booking.bookingDetails.bookedAt).toLocaleDateString()}
+                      Booked: {bookingDate.toLocaleDateString()}
                     </span>
                   </div>
 
-                  {booking.bookingDetails.checkInTime && (
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      <span className="text-sm text-emerald-600 dark:text-emerald-400">
-                        Checked in at {booking.bookingDetails.checkInTime}
+                  {/* Pricing info for the guide */}
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Total</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {booking.currency} {booking.finalPrice.toFixed(2)}
                       </span>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Emergency Contact */}
-              <div className="
-                bg-white dark:bg-gray-900
-                border border-gray-200 dark:border-gray-800
-                rounded-xl
-                p-6
-              ">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-red-500" />
-                  Emergency Contact
-                </h3>
-
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {booking.emergencyContact.name}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {booking.emergencyContact.relationship}
-                  </p>
-                  <a
-                    href={`tel:${booking.emergencyContact.phone}`}
-                    className="
-                      inline-flex items-center gap-2
-                      text-blue-600 dark:text-blue-400
-                      hover:underline
-                    "
-                  >
-                    <Phone className="w-3 h-3" />
-                    {booking.emergencyContact.phone}
-                  </a>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-400">Mode</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {booking.bookingMode === 'Instant' ? 'Instant Book' : 'Request to Book'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -799,28 +482,38 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
                   Quick Actions
                 </h3>
                 <div className="space-y-2">
-                  <button className="
-                    w-full
-                    px-4 py-2
-                    bg-blue-600 hover:bg-blue-700
-                    text-white
-                    rounded-lg
-                    transition-colors
-                    flex items-center justify-center gap-2
-                  ">
+                  <button
+                    onClick={() => {
+                      if (booking.traveler?.email) {
+                        window.location.href = `mailto:${booking.traveler.email}`
+                      }
+                    }}
+                    className="
+                      w-full
+                      px-4 py-2
+                      bg-blue-600 hover:bg-blue-700
+                      text-white
+                      rounded-lg
+                      transition-colors
+                      flex items-center justify-center gap-2
+                    "
+                  >
                     <MessageSquare className="w-4 h-4" />
                     Send Message
                   </button>
-                  <button className="
-                    w-full
-                    px-4 py-2
-                    bg-gray-100 dark:bg-gray-800
-                    text-gray-700 dark:text-gray-300
-                    rounded-lg
-                    hover:bg-gray-200 dark:hover:bg-gray-700
-                    transition-colors
-                    flex items-center justify-center gap-2
-                  ">
+                  <button
+                    disabled
+                    title="Issue reporting coming soon"
+                    className="
+                      w-full
+                      px-4 py-2
+                      bg-gray-100 dark:bg-gray-800
+                      text-gray-400 dark:text-gray-600
+                      rounded-lg
+                      cursor-not-allowed
+                      flex items-center justify-center gap-2
+                    "
+                  >
                     <Flag className="w-4 h-4" />
                     Report Issue
                   </button>

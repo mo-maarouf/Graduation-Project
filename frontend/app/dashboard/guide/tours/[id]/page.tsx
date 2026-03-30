@@ -269,12 +269,16 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
                   <DollarSign className="w-4 h-4 text-emerald-500" />
                   {tour.basePrice} {tour.currency} <span className="text-xs opacity-60">per person</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                   <Users className="w-4 h-4 text-blue-500" />
+                <span className="flex items-center gap-1.5 p-1 px-2.5 bg-blue-50 dark:bg-blue-600/10 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                   <Users className="w-4 h-4" />
                    {tour.minCapacity}-{tour.maxCapacity} Guests
                 </span>
+                <span className="flex items-center gap-1.5 p-1 px-2.5 bg-indigo-50 dark:bg-indigo-600/10 text-indigo-700 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
+                   <Clock className="w-4 h-4" />
+                   {tour.durationHours}h {tour.durationMinutes}m duration
+                </span>
                 {tour.halalFriendly && (
-                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
                     <CheckCircle className="w-4 h-4" />
                     Halal Certified
                   </span>
@@ -411,7 +415,7 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
                 <h2 className="text-xl font-black text-gray-900 dark:text-white mb-6 uppercase tracking-tight">
                   Booking Configuration
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                    <div className="space-y-4">
                      <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-lg ${tour.instantBook ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-blue-50 dark:bg-blue-950/30'}`}>
@@ -423,8 +427,20 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
                         </div>
                      </div>
                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                          <Clock className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div>
+                           <div className="text-sm font-bold text-gray-900 dark:text-white">Duration</div>
+                           <div className="text-xs text-gray-500 dark:text-gray-400 font-medium capitalize">{tour.durationHours}h {tour.durationMinutes}m</div>
+                        </div>
+                     </div>
+                   </div>
+
+                   <div className="space-y-4">
+                     <div className="flex items-start gap-3">
                         <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
-                          <Clock className="w-4 h-4 text-purple-600" />
+                          <Settings className="w-4 h-4 text-purple-600" />
                         </div>
                         <div>
                            <div className="text-sm font-bold text-gray-900 dark:text-white">Type</div>
@@ -441,15 +457,6 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
                         <div>
                            <div className="text-sm font-bold text-gray-900 dark:text-white">Category</div>
                            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium capitalize">{tour.category}</div>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
-                          <Settings className="w-4 h-4 text-indigo-600" />
-                        </div>
-                        <div>
-                           <div className="text-sm font-bold text-gray-900 dark:text-white">Portfolio Visibility</div>
-                           <div className="text-xs text-gray-500 dark:text-gray-400">{tour.showInPortfolio ? 'Visible in guide public portfolio' : 'Hidden from portfolio'}</div>
                         </div>
                      </div>
                    </div>

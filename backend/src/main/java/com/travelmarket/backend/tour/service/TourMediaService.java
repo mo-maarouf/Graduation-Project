@@ -31,6 +31,7 @@ public class TourMediaService {
         media.setMediaType(request.getMediaType());
         media.setUrl(request.getUrl());
         media.setDisplayOrder(request.getDisplayOrder());
+        media.setCaption(request.getCaption());
 
         TourMedia saved = mediaRepository.save(media);
         return tourMapper.toMediaResponse(saved);

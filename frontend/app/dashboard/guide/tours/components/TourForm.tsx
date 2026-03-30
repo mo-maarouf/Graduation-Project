@@ -26,27 +26,27 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { 
-  Camera, 
-  MapPin, 
-  Shield, 
-  Users, 
-  Calendar, 
-  Clock, 
-  DollarSign, 
-  Globe, 
-  ChevronRight, 
-  Plus, 
-  Trash2, 
+import {
+  Camera,
+  MapPin,
+  Shield,
+  Users,
+  Calendar,
+  Clock,
+  DollarSign,
+  Globe,
+  ChevronRight,
+  Plus,
+  Trash2,
   ChevronDown,
   ChevronUp,
   Save,
-  Eye, 
+  Eye,
   Info,
   CheckCircle,
   X,
@@ -60,22 +60,24 @@ import {
   PlusCircle,
   Video,
   Undo2,
-  AlertCircle,
+  Star,
   Sparkles,
-  Star
+  AlertCircle
 } from 'lucide-react'
+import { Country, City } from 'country-state-city'
+import { Combobox } from '@headlessui/react'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import CalendarPicker from '@/src/components/ui/CalendarPicker'
 import { GuideProfileResponse } from '@/src/lib/types/guide.types'
-import { 
-  createTour, 
-  updateTour, 
+import {
+  createTour,
+  updateTour,
   getGuideProfile,
   getGuideTour,
-  addTourMedia, 
+  addTourMedia,
   submitTourForReview,
-  withdrawTourFromReview 
+  withdrawTourFromReview
 } from '@/src/lib/api/tours'
 // ============================================================================
 // PROPS INTERFACE - ADD THIS AFTER IMPORTS
@@ -100,9 +102,10 @@ interface TourFormData {
   // Basic Info
   title: string
   description: string
-  category: string
+  category: string // Deprecated, use categories
+  categories: string[]
   tags: string[]
-  
+
   // Location
   location: string
   city: string
@@ -114,7 +117,7 @@ interface TourFormData {
     lng?: number
     instructions?: string
   }
-  
+
   // Media
   mainImage: string
   gallery: {
@@ -124,13 +127,13 @@ interface TourFormData {
     thumbnail?: string
     caption: string
   }[]
-  
+
   // Capacity & Booking
   minCapacity: number
   maxCapacity: number
   bookingMode: BookingMode
   instantBookEnabled: boolean
-  
+
   // Schedule
   tourType: TourType
   startDate?: string
@@ -140,11 +143,11 @@ interface TourFormData {
   recurringUntil?: string
   recurringDates?: string[]
   excludedDates?: string[]
-  
+
   // Duration
   durationHours: number
   durationMinutes: number
-  
+
   // Pricing
   basePrice: number
   currency: 'USD' | 'TRY' | 'LBP'
@@ -157,12 +160,12 @@ interface TourFormData {
     lastMinuteDiscount?: number
     earlyBirdDiscount?: number
   }
-  
+
   // Group Discount
   groupDiscountEnabled: boolean
   groupDiscountThreshold: number
   groupDiscountPercent: number
-  
+
   // Halal Features
   isHalalCertified: boolean
   isFamilyFriendly: boolean
@@ -173,13 +176,13 @@ interface TourFormData {
     mosqueVisits: boolean
     qiblaDirection?: string
   }
-  
+
   // Languages
   availableLanguages: {
     language: string
     proficiency: 'basic' | 'fluent' | 'native'
   }[]
-  
+
   // Itinerary
   itinerary: {
     id: string
@@ -194,15 +197,15 @@ interface TourFormData {
     }
     image?: string
   }[]
-  
+
   // Inclusions/Exclusions
   inclusions: string[]
   exclusions: string[]
-  
+
   // Requirements
   requirements: string[]
   whatToBring: string[]
-  
+
   // Cancellation Policy
   cancellationPolicy: {
     fullRefund: number // hours before
@@ -210,9 +213,148 @@ interface TourFormData {
     partialRefundPercent: number
     noRefund: number // hours before
   }
-  
+
   // Status
   status: 'draft' | 'published' | 'paused' | 'archived' | 'pending_review' | 'rejected'
+}
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const COMMON_LANGUAGES = [
+  "Afrikaans", "Albanian", "Amharic", "Arabic", "Armenian", "Azerbaijani", 
+  "Basque", "Belarusian", "Bengali", "Bosnian", "Bulgarian", "Catalan", 
+  "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech", 
+  "Danish", "Dutch", "English", "Esperanto", "Estonian", "Finnish", 
+  "French", "Galician", "Georgian", "German", "Greek", "Gujarati", 
+  "Haitian Creole", "Hausa", "Hebrew", "Hindi", "Hungarian", "Icelandic", 
+  "Igbo", "Indonesian", "Irish", "Italian", "Japanese", "Javanese", 
+  "Kannada", "Kazakh", "Khmer", "Kinyarwanda", "Korean", "Kurdish", 
+  "Kyrgyz", "Lao", "Latin", "Latvian", "Lithuanian", "Luxembourgish", 
+  "Macedonian", "Malagasy", "Malay", "Malayalam", "Maltese", "Maori", 
+  "Marathi", "Mongolian", "Myanmar (Burmese)", "Nepali", "Norwegian", 
+  "Nyanja (Chichewa)", "Odia (Oriya)", "Pashto", "Persian", "Polish", 
+  "Portuguese", "Punjabi", "Romanian", "Russian", "Samoan", "Scots Gaelic", 
+  "Serbian", "Sesotho", "Shona", "Sindhi", "Sinhala (Sinhalese)", "Slovak", 
+  "Slovenian", "Somali", "Spanish", "Sundanese", "Swahili", "Swedish", 
+  "Tagalog (Filipino)", "Tajik", "Tamil", "Tatar", "Telugu", "Thai", 
+  "Turkish", "Turkmen", "Ukrainian", "Urdu", "Uyghur", "Uzbek", 
+  "Vietnamese", "Welsh", "Xhosa", "Yiddish", "Yoruba", "Zulu"
+].sort();
+
+const TOUR_CATEGORIES = [
+  { label: 'Historical', value: 'historical' },
+  { label: 'Cultural', value: 'cultural' },
+  { label: 'Food & Culinary', value: 'food' },
+  { label: 'Adventure', value: 'adventure' },
+  { label: 'Nature & Outdoors', value: 'nature' },
+  { label: 'Family Friendly', value: 'family' },
+  { label: 'Religious / Halal', value: 'religious' },
+  { label: 'Hiking', value: 'hiking' },
+  { label: 'Photography', value: 'photography' },
+  { label: 'Nightlife', value: 'nightlife' },
+  { label: 'Shopping', value: 'shopping' },
+  { label: 'Beach', value: 'beach' },
+  { label: 'Wellness', value: 'wellness' },
+  { label: 'Art', value: 'art' },
+  { label: 'Architecture', value: 'architecture' },
+  { label: 'Education', value: 'education' },
+].sort((a, b) => a.label.localeCompare(b.label));
+
+// ============================================================================
+// REUSABLE COMPONENTS
+// ============================================================================
+
+interface SearchableSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  label?: string;
+  disabled?: boolean;
+}
+
+function SearchableSelect({ value, onChange, options, placeholder = "Search...", label, disabled }: SearchableSelectProps) {
+  const [query, setQuery] = useState('')
+
+  const filteredOptions = query === ''
+    ? options
+    : options.filter((opt) =>
+        opt.label.toLowerCase().includes(query.toLowerCase())
+      )
+
+  const selectedOption = options.find(opt => opt.value === value) || null
+
+  return (
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          {label}
+        </label>
+      )}
+      <Combobox value={value} onChange={(val: string | null) => val !== null && onChange(val)} disabled={disabled}>
+        {({ open }) => (
+          <div className="relative">
+            <Combobox.Button as="div" className="relative w-full cursor-pointer overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 text-left focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all sm:text-sm shadow-sm hover:bg-white dark:hover:bg-gray-800/80 ">
+              <Combobox.Input
+                className="w-full border-none py-2.5 pl-3 pr-10 text-sm leading-5 text-gray-900 dark:text-white bg-transparent focus:ring-0 outline-none cursor-pointer"
+                displayValue={() => selectedOption?.label || ''}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={placeholder}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <ChevronDown
+                  className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+              </div>
+            </Combobox.Button>
+            <Combobox.Options className="absolute z-[100] mt-1 pr-2 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm border border-gray-200 dark:border-gray-700">
+              {filteredOptions.length === 0 && query !== '' ? (
+                <div className="relative cursor-default select-none py-2 px-4 text-gray-700 dark:text-gray-300">
+                  Nothing found.
+                </div>
+              ) : (
+                filteredOptions.map((opt) => (
+                  <Combobox.Option
+                    key={opt.value}
+                    className={({ active }) =>
+                      `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                        active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-white'
+                      }`
+                    }
+                    value={opt.value}
+                  >
+                    {({ selected, active }) => (
+                      <>
+                        <span
+                          className={`block truncate ${
+                            selected ? 'font-medium' : 'font-normal'
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                        {selected ? (
+                          <span
+                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
+                              active ? 'text-white' : 'text-blue-600'
+                            }`}
+                          >
+                            <CheckCircle className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </Combobox.Option>
+                ))
+              )}
+            </Combobox.Options>
+          </div>
+        )}
+      </Combobox>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -224,7 +366,7 @@ const MOCK_TOUR_DATA_FOR_EDIT: TourFormData = {
   description: '',
   category: 'historical',
   tags: [],
-  
+
   location: '',
   city: '',
   country: '',
@@ -233,32 +375,32 @@ const MOCK_TOUR_DATA_FOR_EDIT: TourFormData = {
     address: '',
     instructions: ''
   },
-  
+
   mainImage: '',
   gallery: [],
-  
+
   minCapacity: 1,
   maxCapacity: 10,
   bookingMode: 'instant',
   instantBookEnabled: true,
-  
+
   tourType: 'one-time',
   recurringDays: [],
   recurringUntil: undefined,
-  
+
   durationHours: 2,
   durationMinutes: 0,
-  
+
   basePrice: 50,
   currency: 'USD',
   dynamicPricing: {
     enabled: false
   },
-  
+
   groupDiscountEnabled: false,
   groupDiscountThreshold: 4,
   groupDiscountPercent: 5,
-  
+
   isHalalCertified: false,
   isFamilyFriendly: false,
   isPremium: false,
@@ -268,24 +410,24 @@ const MOCK_TOUR_DATA_FOR_EDIT: TourFormData = {
     genderSensitiveGuides: false,
     mosqueVisits: false
   },
-  
+
   availableLanguages: [],
-  
+
   itinerary: [],
-  
+
   inclusions: [],
   exclusions: [],
-  
+
   requirements: [],
   whatToBring: [],
-  
+
   cancellationPolicy: {
     fullRefund: 48,
     partialRefund: 24,
     partialRefundPercent: 50,
     noRefund: 24
   },
-  
+
   status: 'draft'
 }
 
@@ -304,10 +446,10 @@ function FormSection({ title, icon: Icon, children, defaultExpanded = true }: Fo
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <div className=" bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden ">
+    <div className=" bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl relative ">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className=" w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors "
+        className=" w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-t-xl "
       >
         <div className="flex items-center gap-2">
           <Icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -321,7 +463,7 @@ function FormSection({ title, icon: Icon, children, defaultExpanded = true }: Fo
           <ChevronDown className="w-5 h-5 text-gray-500 dark:text-gray-400" />
         )}
       </button>
-      
+
       {isExpanded && (
         <div className="p-6">
           {children}
@@ -353,8 +495,8 @@ function BasicInfoSection({ formData, onChange }: BasicInfoSectionProps) {
             type="text"
             value={formData.title}
             onChange={(e) => onChange('title', e.target.value)}
-            className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            placeholder="e.g., Ottoman Heritage: Topkapi Palace & Hagia Sophia"
+            className=" w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80 "
+            placeholder=""
           />
         </div>
 
@@ -367,29 +509,52 @@ function BasicInfoSection({ formData, onChange }: BasicInfoSectionProps) {
             value={formData.description}
             onChange={(e) => onChange('description', e.target.value)}
             rows={5}
-            className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none "
-            placeholder="Describe your tour, what travelers will experience, and what makes it special..."
+            className=" w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80 resize-none "
+            placeholder=""
           />
         </div>
 
-        {/* Category */}
+        {/* Categories (Multi-select fallback) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Category
+            Categories (Max 3)
           </label>
-          <select
-            value={formData.category}
-            onChange={(e) => onChange('category', e.target.value)}
-            className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-          >
-            <option value="historical">Historical</option>
-            <option value="cultural">Cultural</option>
-            <option value="food">Food & Culinary</option>
-            <option value="adventure">Adventure</option>
-            <option value="nature">Nature & Outdoors</option>
-            <option value="family">Family Friendly</option>
-            <option value="religious">Religious / Halal</option>
-          </select>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {formData.categories.map((catValue) => {
+              const cat = TOUR_CATEGORIES.find(c => c.value === catValue);
+              return (
+                <span 
+                  key={catValue} 
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-800 transition-all"
+                >
+                  {cat?.label || catValue}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange('categories', formData.categories.filter(c => c !== catValue));
+                    }}
+                    className="hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+          <SearchableSelect
+            value=""
+            onChange={(val) => {
+              if (formData.categories.length >= 3) {
+                toast.error('Maximum 3 categories allowed');
+                return;
+              }
+              if (formData.categories.includes(val)) return;
+              onChange('categories', [...formData.categories, val]);
+            }}
+            options={TOUR_CATEGORIES.filter(c => !formData.categories.includes(c.value))}
+            placeholder={formData.categories.length >= 3 ? "Limit reached (max 3)" : "Adding categories..."}
+            disabled={formData.categories.length >= 3}
+          />
         </div>
 
         {/* Tags */}
@@ -401,8 +566,8 @@ function BasicInfoSection({ formData, onChange }: BasicInfoSectionProps) {
             type="text"
             value={formData.tags.join(', ')}
             onChange={(e) => onChange('tags', e.target.value.split(',').map(t => t.trim()))}
-            className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            placeholder="istanbul, ottoman, history, palace"
+            className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+            placeholder=""
           />
         </div>
       </div>
@@ -420,35 +585,44 @@ interface LocationSectionProps {
 }
 
 function LocationSection({ formData, onChange }: LocationSectionProps) {
+  // Memoize options to prevent unnecessary re-renders
+  const countryOptions = useMemo(() => 
+    Country.getAllCountries().map(c => ({ label: c.name, value: c.name })),
+  [])
+
+  const cityOptions = useMemo(() => {
+    if (!formData.country) return []
+    const countryObj = Country.getAllCountries().find(c => c.name === formData.country)
+    if (!countryObj) return []
+    const cities = City.getCitiesOfCountry(countryObj.isoCode)
+    return (cities || []).map(c => ({ label: c.name, value: c.name }))
+  }, [formData.country])
+
   return (
     <FormSection title="Location & Meeting Point" icon={MapPin}>
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              City
-            </label>
-            <input
-              type="text"
-              value={formData.city}
-              onChange={(e) => onChange('city', e.target.value)}
-              className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-              placeholder="e.g., Istanbul"
+            <SearchableSelect
+              label="Country"
+              value={formData.country}
+              onChange={(val) => {
+                onChange('country', val)
+                onChange('city', '') // Reset city when country changes
+              }}
+              options={countryOptions}
+              placeholder="Select country"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Country
-            </label>
-            <select
-              value={formData.country}
-              onChange={(e) => onChange('country', e.target.value)}
-              className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            >
-              <option value="">Select country</option>
-              <option value="turkey">Turkey</option>
-              <option value="lebanon">Lebanon</option>
-            </select>
+            <SearchableSelect
+              label="City"
+              value={formData.city}
+              onChange={(val) => onChange('city', val)}
+              options={cityOptions}
+              placeholder={formData.country ? "Select city" : "Select country first"}
+              disabled={!formData.country}
+            />
           </div>
         </div>
 
@@ -461,7 +635,7 @@ function LocationSection({ formData, onChange }: LocationSectionProps) {
             value={formData.meetingPoint.name}
             onChange={(e) => onChange('meetingPoint', { ...formData.meetingPoint, name: e.target.value })}
             className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            placeholder="e.g., Sultanahmet Square Fountain"
+            placeholder=""
           />
         </div>
 
@@ -474,7 +648,7 @@ function LocationSection({ formData, onChange }: LocationSectionProps) {
             value={formData.meetingPoint.address}
             onChange={(e) => onChange('meetingPoint', { ...formData.meetingPoint, address: e.target.value })}
             className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            placeholder="Full address with street, district, city"
+            placeholder=""
           />
         </div>
 
@@ -487,7 +661,7 @@ function LocationSection({ formData, onChange }: LocationSectionProps) {
             onChange={(e) => onChange('meetingPoint', { ...formData.meetingPoint, instructions: e.target.value })}
             rows={2}
             className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            placeholder="e.g., Look for the guide holding an orange sign"
+            placeholder=""
           />
         </div>
 
@@ -536,10 +710,15 @@ function CapacitySection({ formData, onChange }: CapacitySectionProps) {
             <input
               type="number"
               min={formData.minCapacity || 1}
+              max="999"
               value={formData.maxCapacity || ''}
-              onChange={(e) => onChange('maxCapacity', e.target.value === '' ? 0 : parseInt(e.target.value))}
-              className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+              onChange={(e) => {
+                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                onChange('maxCapacity', val);
+              }}
+              className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all "
             />
+            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">Total spots available per tour</p>
           </div>
         </div>
 
@@ -643,16 +822,17 @@ function ScheduleSection({ formData, onChange }: ScheduleSectionProps) {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Minutes
             </label>
-            <select
-              value={formData.durationMinutes || 0}
-              onChange={(e) => onChange('durationMinutes', parseInt(e.target.value) || 0)}
+            <input
+              type="number"
+              min="0"
+              max="59"
+              value={formData.durationMinutes ?? 0}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0
+                onChange('durationMinutes', Math.min(59, Math.max(0, val)))
+              }}
               className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-            >
-              <option value={0}>0 min</option>
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-            </select>
+            />
           </div>
         </div>
 
@@ -693,11 +873,10 @@ function ScheduleSection({ formData, onChange }: ScheduleSectionProps) {
                         key={day}
                         type="button"
                         onClick={() => toggleDay(day)}
-                        className={` px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          isSelected 
-                            ? 'bg-blue-600 text-white' 
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300' 
-                        }`}
+                        className={` px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                          }`}
                       >
                         {day.slice(0, 3)}
                       </button>
@@ -739,89 +918,154 @@ function ScheduleSection({ formData, onChange }: ScheduleSectionProps) {
         {/* Recurring Date Preview */}
         {formData.tourType === 'recurring' && (
           <div className="mt-6 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
-             <div className="flex items-center gap-2 mb-4">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                <h4 className="text-xs font-black text-blue-900 dark:text-blue-100 uppercase tracking-widest">
-                  Upcoming Departure Preview
-                </h4>
-             </div>
-             <CalendarPicker
-               selectedDates={(() => {
-                 if (formData.recurrencePattern === 'custom') {
-                   return (formData.recurringDates || []).map(d => {
-                     const [year, month, day] = d.split('-').map(Number)
-                     return new Date(year, month - 1, day)
-                   })
-                 }
-                 
-                 const dates: Date[] = []
-                 const dayMap: Record<string, number> = {
-                   'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 
-                   'thursday': 4, 'friday': 5, 'saturday': 6
-                 }
-                 const targetDays = (formData.recurringDays || []).map(d => dayMap[d.toLowerCase()])
-                 
-                 if (targetDays.length === 0 && formData.recurrencePattern !== 'daily') return []
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-black text-blue-900 dark:text-blue-100 uppercase tracking-widest">
+                Upcoming Departure Preview
+              </h4>
+            </div>
+            <CalendarPicker
+              selectedDates={(() => {
+                if (formData.recurrencePattern === 'custom') {
+                  return (formData.recurringDates || []).map(d => {
+                    const [year, month, day] = d.split('-').map(Number)
+                    return new Date(year, month - 1, day)
+                  })
+                }
 
-                 let current = new Date()
-                 let count = 0
-                 while (count < 90 && dates.length < 24) {
-                   const isPatternDay = formData.recurrencePattern === 'daily' || targetDays.includes(current.getDay())
-                    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-                   const isExcluded = formData.excludedDates?.includes(dateStr)
+                const dates: Date[] = []
+                const dayMap: Record<string, number> = {
+                  'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+                  'thursday': 4, 'friday': 5, 'saturday': 6
+                }
+                const targetDays = (formData.recurringDays || []).map(d => dayMap[d.toLowerCase()])
 
-                   if (isPatternDay && !isExcluded) {
-                     if (formData.recurringUntil && current > new Date(formData.recurringUntil)) {
-                       break;
-                     }
-                     dates.push(new Date(current))
-                   }
-                   current.setDate(current.getDate() + 1)
-                   count++
-                 }
-                 return dates
-               })()}
-               highlightedDates={(formData.excludedDates || []).map(d => {
-                  const [year, month, day] = d.split('-').map(Number)
-                  return new Date(year, month - 1, day)
-                })}
-                onToggleDate={(date) => {
-                  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-                 if (formData.recurrencePattern === 'custom') {
-                   const current = formData.recurringDates || []
-                   if (current.includes(dateStr)) {
-                     onChange('recurringDates', current.filter(d => d !== dateStr))
-                   } else {
-                     onChange('recurringDates', [...current, dateStr])
-                   }
-                 } else {
-                   const current = formData.excludedDates || []
-                   if (current.includes(dateStr)) {
-                     onChange('excludedDates', current.filter(d => d !== dateStr))
-                   } else {
-                     onChange('excludedDates', [...current, dateStr])
-                   }
-                 }
-               }}
-             />
-             <p className="mt-3 text-[10px] font-bold text-blue-600/60 uppercase tracking-widest text-center italic">
-                Check the "Occurrences" page after saving for full schedule management
-             </p>
+                if (targetDays.length === 0 && formData.recurrencePattern !== 'daily') return []
+
+                let current = new Date()
+                let count = 0
+                while (count < 90 && dates.length < 24) {
+                  const isPatternDay = formData.recurrencePattern === 'daily' || targetDays.includes(current.getDay())
+                  const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+                  const isExcluded = formData.excludedDates?.includes(dateStr)
+
+                  if (isPatternDay && !isExcluded) {
+                    if (formData.recurringUntil && current > new Date(formData.recurringUntil)) {
+                      break;
+                    }
+                    dates.push(new Date(current))
+                  }
+                  current.setDate(current.getDate() + 1)
+                  count++
+                }
+                return dates
+              })()}
+              highlightedDates={(formData.excludedDates || []).map(d => {
+                const [year, month, day] = d.split('-').map(Number)
+                return new Date(year, month - 1, day)
+              })}
+              onToggleDate={(date) => {
+                const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+                if (formData.recurrencePattern === 'custom') {
+                  const current = formData.recurringDates || []
+                  if (current.includes(dateStr)) {
+                    onChange('recurringDates', current.filter(d => d !== dateStr))
+                  } else {
+                    onChange('recurringDates', [...current, dateStr])
+                  }
+                } else {
+                  const current = formData.excludedDates || []
+                  if (current.includes(dateStr)) {
+                    onChange('excludedDates', current.filter(d => d !== dateStr))
+                  } else {
+                    onChange('excludedDates', [...current, dateStr])
+                  }
+                }
+              }}
+            />
+            <p className="mt-3 text-[10px] font-bold text-blue-600/60 uppercase tracking-widest text-center italic">
+              Check the "Occurrences" page after saving for full schedule management
+            </p>
           </div>
         )}
 
-        {/* Start Date Selection (Unified) */}
-        <div>
+        {/* Start Date & Time Selection (Unified) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {formData.tourType === 'recurring' ? 'First Occurrence Date & Time' : 'Start Date & Time'}
+              {formData.tourType === 'recurring' ? 'Base Start Date' : 'Start Date'}
             </label>
             <input
-              type="datetime-local"
-              value={formData.startDate || ''}
-              onChange={(e) => onChange('startDate', e.target.value)}
+              type="date"
+              value={formData.startDate ? formData.startDate.split('T')[0] : ''}
+              onChange={(e) => {
+                const datePart = e.target.value;
+                const timePart = formData.startDate ? formData.startDate.split('T')[1]?.split('.')[0] || '09:00:00' : '09:00:00';
+                onChange('startDate', `${datePart}T${timePart}.000Z`);
+              }}
               className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Start Time
+            </label>
+            <div className="relative group">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
+              <input
+                type="time"
+                value={(() => {
+                  if (!formData.startDate) return '09:00';
+                  try {
+                    // Stage 1: Absolute UTC Normalization
+                    let dateStr = formData.startDate.trim();
+                    if (!dateStr.includes('Z') && !dateStr.includes('+')) {
+                      dateStr = dateStr.replace(' ', 'T') + 'Z';
+                    }
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return '09:00';
+
+                    // Stage 2: Deterministic Beirut Offset (2026 Calendar)
+                    const isDST = d >= new Date('2026-03-29T00:00:00Z') && d < new Date('2026-10-25T00:00:00Z');
+                    const offset = isDST ? 3 : 2;
+                    
+                    // Stage 3: UTC-based Wall-Clock Extraction
+                    const shifted = new Date(d.getTime() + (offset * 3600000));
+                    const hh = shifted.getUTCHours().toString().padStart(2, '0');
+                    const mm = shifted.getUTCMinutes().toString().padStart(2, '0');
+                    
+                    return `${hh}:${mm}`;
+                  } catch (e) {
+                    return '09:00';
+                  }
+                })()}
+                onChange={(e) => {
+                  const newTime = e.target.value;
+                  if (!newTime) return;
+                  
+                  const [h, m] = newTime.split(':').map(Number);
+                  const d1 = formData.startDate ? new Date(formData.startDate) : new Date();
+                  const datePart = d1.toISOString().split('T')[0];
+                  
+                  const targetDay = new Date(`${datePart}T12:00:00Z`);
+                  const isDST = targetDay >= new Date('2026-03-29T00:00:00Z') && targetDay < new Date('2026-10-25T00:00:00Z');
+                  const offset = isDST ? 3 : 2;
+                  
+                  const finalUTC = new Date(Date.UTC(
+                    parseInt(datePart.split('-')[0]),
+                    parseInt(datePart.split('-')[1]) - 1,
+                    parseInt(datePart.split('-')[2]),
+                    h - offset,
+                    m
+                  ));
+                  
+                  onChange('startDate', finalUTC.toISOString());
+                }}
+                className=" w-full pl-10 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </FormSection>
   )
@@ -930,8 +1174,8 @@ function PricingSection({ formData, onChange }: PricingSectionProps) {
                 type="number"
                 min="0"
                 value={formData.dynamicPricing.weekendMultiplier || ''}
-                onChange={(e) => onChange('dynamicPricing', { 
-                  ...formData.dynamicPricing, 
+                onChange={(e) => onChange('dynamicPricing', {
+                  ...formData.dynamicPricing,
                   weekendMultiplier: e.target.value === '' ? 0 : parseInt(e.target.value)
                 })}
                 className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
@@ -947,8 +1191,8 @@ function PricingSection({ formData, onChange }: PricingSectionProps) {
                 type="number"
                 min="0"
                 value={formData.dynamicPricing.holidayMultiplier || ''}
-                onChange={(e) => onChange('dynamicPricing', { 
-                  ...formData.dynamicPricing, 
+                onChange={(e) => onChange('dynamicPricing', {
+                  ...formData.dynamicPricing,
                   holidayMultiplier: e.target.value === '' ? 0 : parseInt(e.target.value)
                 })}
                 className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
@@ -1002,9 +1246,13 @@ function PricingSection({ formData, onChange }: PricingSectionProps) {
                 type="number"
                 min="0"
                 max="100"
-                value={formData.groupDiscountPercent || ''}
-                onChange={(e) => onChange('groupDiscountPercent', e.target.value === '' ? 0 : parseInt(e.target.value))}
-                className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+                step="0.01"
+                value={Math.round((formData.groupDiscountPercent || 0) * 100) / 100 || ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                  onChange('groupDiscountPercent', Math.round(val * 100) / 100);
+                }}
+                className=" w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all "
               />
             </div>
           </div>
@@ -1035,7 +1283,7 @@ function MediaSection({ formData, onChange }: MediaSectionProps) {
       const newMedia = []
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        
+
         // 50MB limit check
         if (file.size > 100 * 1024 * 1024) {
           toast.error(`File ${file.name} is too large. Max 100MB.`)
@@ -1049,7 +1297,7 @@ function MediaSection({ formData, onChange }: MediaSectionProps) {
           reader.readAsDataURL(file)
         })
         const base64 = await base64Promise
-        
+
         newMedia.push({
           id: `temp-${Date.now()}-${i}`,
           type: file.type.startsWith('video') ? 'video' as const : 'image' as const,
@@ -1069,47 +1317,64 @@ function MediaSection({ formData, onChange }: MediaSectionProps) {
     onChange('gallery', formData.gallery.filter((_, i) => i !== index))
   }
 
+  const updateMediaCaption = (index: number, caption: string) => {
+    const updated = [...formData.gallery]
+    updated[index] = { ...updated[index], caption }
+    onChange('gallery', updated)
+  }
+
   return (
     <FormSection title="Photos & Videos" icon={Camera}>
       <div className="space-y-4">
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
           The first image will be used as the cover photo. Max 100MB per file.
         </p>
-        
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {formData.gallery.map((item, index) => (
-            <div key={item.id} className="relative aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 group">
-              {item.type === 'image' ? (
-                <Image src={item.url} alt={`Media ${index}`} fill className="object-cover" />
-              ) : (
-                <video 
-                  src={item.url} 
-                  className="w-full h-full object-cover" 
-                  muted 
-                  playsInline 
-                  onMouseOver={(e) => e.currentTarget.play()}
-                  onMouseOut={(e) => e.currentTarget.pause()}
-                />
-              )}
-              
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => removeMedia(index)}
-                  className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {index === 0 && (
-                <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600 text-[10px] font-bold text-white rounded-full shadow-lg">
-                  COVER
+            <div key={item.id} className="flex flex-col gap-2">
+              <div className="relative aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 group">
+                {item.type === 'image' ? (
+                  <Image src={item.url} alt={`Media ${index}`} fill className="object-cover" />
+                ) : (
+                  <video
+                    src={item.url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    onMouseOver={(e) => e.currentTarget.play()}
+                    onMouseOut={(e) => e.currentTarget.pause()}
+                  />
+                )}
+
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => removeMedia(index)}
+                    className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
+
+                {index === 0 && (
+                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600 text-[10px] font-bold text-white rounded-full shadow-lg">
+                    COVER
+                  </div>
+                )}
+              </div>
+              <div className="mt-1 px-1">
+                <input
+                  type="text"
+                  placeholder="Add a caption..."
+                  value={item.caption || ''}
+                  onChange={(e) => updateMediaCaption(index, e.target.value)}
+                  className="w-full text-[11px] py-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 outline-none text-gray-600 dark:text-gray-400 placeholder:italic transition-colors"
+                />
+              </div>
             </div>
           ))}
-          
+
           <label className="relative aspect-video rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 cursor-pointer flex flex-col items-center justify-center gap-2 transition-all">
             <input
               type="file"
@@ -1250,12 +1515,12 @@ function LanguagesSection({ formData, onChange }: LanguagesSectionProps) {
 
   const handleAddLanguage = () => {
     if (!newLanguage.trim()) return
-    
+
     onChange('availableLanguages', [
       ...formData.availableLanguages,
       { language: newLanguage, proficiency: newProficiency }
     ])
-    
+
     setNewLanguage('')
   }
 
@@ -1297,12 +1562,11 @@ function LanguagesSection({ formData, onChange }: LanguagesSectionProps) {
 
         {/* Add new language */}
         <div className="flex gap-2">
-          <input
-            type="text"
+          <SearchableSelect
             value={newLanguage}
-            onChange={(e) => setNewLanguage(e.target.value)}
-            placeholder="e.g., Arabic"
-            className=" flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+            onChange={(val) => setNewLanguage(val)}
+            options={COMMON_LANGUAGES.map(l => ({ label: l, value: l }))}
+            placeholder="Search language..."
           />
           <select
             value={newProficiency}
@@ -1345,7 +1609,7 @@ function ItinerarySection({ formData, onChange }: ItinerarySectionProps) {
       order: formData.itinerary.length + 1,
       title: '',
       description: '',
-      duration: '30 min',
+      duration: '0h 30m',
       location: undefined
     }
     onChange('itinerary', [...formData.itinerary, newItem])
@@ -1359,9 +1623,9 @@ function ItinerarySection({ formData, onChange }: ItinerarySectionProps) {
 
   const updateItineraryLocation = (index: number, locationName: string) => {
     const updated = [...formData.itinerary]
-    updated[index] = { 
-      ...updated[index], 
-      location: locationName ? { name: locationName } : undefined 
+    updated[index] = {
+      ...updated[index],
+      location: locationName ? { name: locationName } : undefined
     }
     onChange('itinerary', updated)
   }
@@ -1391,8 +1655,8 @@ function ItinerarySection({ formData, onChange }: ItinerarySectionProps) {
               type="text"
               value={item.title}
               onChange={(e) => updateItineraryItem(index, 'title', e.target.value)}
-              placeholder="Title (e.g., Hagia Sophia)"
-              className=" w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+              placeholder=""
+                  className=" w-full px-3 py-2.5 bg-white dark:bg-gray-900 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-gray-50 dark:hover:bg-gray-900/80 "
             />
 
             <textarea
@@ -1400,23 +1664,58 @@ function ItinerarySection({ formData, onChange }: ItinerarySectionProps) {
               onChange={(e) => updateItineraryItem(index, 'description', e.target.value)}
               placeholder="Description of this stop"
               rows={2}
-              className=" w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none "
+              className=" w-full px-3 py-2.5 bg-white dark:bg-gray-900 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-gray-50 dark:hover:bg-gray-900/80 resize-none "
             />
 
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={item.duration}
-                onChange={(e) => updateItineraryItem(index, 'duration', e.target.value)}
-                placeholder="Duration (e.g., 1 hour)"
-                className=" px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
-              />
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Hr"
+                    value={(() => {
+                      const match = item.duration.match(/^(-?\d*)h/);
+                      return match ? match[1] : '';
+                    })()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const mMatch = item.duration.match(/h\s*(-?\d*)m/);
+                      const m = mMatch ? mMatch[1] : '0';
+                      updateItineraryItem(index, 'duration', `${val}h ${m}m`);
+                    }}
+                    className=" w-full px-3 py-2 bg-white dark:bg-gray-900 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all text-sm "
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-bold pointer-events-none uppercase">Hr</span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    placeholder="Min"
+                    value={(() => {
+                      const match = item.duration.match(/h\s*(-?\d*)m/);
+                      return match ? match[1] : '';
+                    })()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const hMatch = item.duration.match(/^(-?\d*)h/);
+                      const h = hMatch ? hMatch[1] : '0';
+                      updateItineraryItem(index, 'duration', `${h}h ${val}m`);
+                    }}
+                    className=" w-full px-3 py-2 bg-white dark:bg-gray-900 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all text-sm "
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-bold pointer-events-none uppercase">Min</span>
+                </div>
+              </div>
               <input
                 type="text"
                 value={item.location?.name || ''}
                 onChange={(e) => updateItineraryLocation(index, e.target.value)}
-                placeholder="Location (optional)"
-                className=" px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addItineraryItem())}
+                placeholder="Location"
+                className=" w-full px-3 py-2 bg-white dark:bg-gray-900 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all text-xs "
               />
             </div>
           </div>
@@ -1493,8 +1792,9 @@ function InclusionsExclusionsSection({ formData, onChange }: InclusionsExclusion
               type="text"
               value={newInclusion}
               onChange={(e) => setNewInclusion(e.target.value)}
-              placeholder="e.g., Professional guide"
-              className=" flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addInclusion())}
+              placeholder=""
+              className=" flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80 "
             />
             <button
               onClick={addInclusion}
@@ -1528,8 +1828,9 @@ function InclusionsExclusionsSection({ formData, onChange }: InclusionsExclusion
               type="text"
               value={newExclusion}
               onChange={(e) => setNewExclusion(e.target.value)}
-              placeholder="e.g., Hotel pickup"
-              className=" flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 "
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addExclusion())}
+              placeholder=""
+              className=" flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80 "
             />
             <button
               onClick={addExclusion}
@@ -1603,8 +1904,9 @@ function RequirementsSection({ formData, onChange }: RequirementsSectionProps) {
               type="text"
               value={newRequirement}
               onChange={(e) => setNewRequirement(e.target.value)}
-              placeholder="e.g., Moderate fitness level"
-              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRequirement())}
+              placeholder=""
+              className="flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80"
             />
             <button
               onClick={addRequirement}
@@ -1638,8 +1940,9 @@ function RequirementsSection({ formData, onChange }: RequirementsSectionProps) {
               type="text"
               value={newThing}
               onChange={(e) => setNewThing(e.target.value)}
-              placeholder="e.g., Comfortable walking shoes"
-              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addThing())}
+              placeholder=""
+              className="flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200/80 dark:border-gray-700/80 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm hover:bg-white dark:hover:bg-gray-800/80"
             />
             <button
               onClick={addThing}
@@ -1666,8 +1969,112 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
     const base = {
       ...INITIAL_FORM_DATA,
       ...initialData
-    };
-    
+    } as any;
+
+    // Map backend 'media' to frontend 'gallery'
+    if (initialData && (initialData as any).media) {
+      base.gallery = (initialData as any).media.map((m: any) => ({
+        id: m.id.toString(),
+        type: (m.mediaType || 'IMAGE').toLowerCase() === 'video' ? 'video' : 'image',
+        url: m.url,
+        caption: m.caption || ''
+      }));
+    }
+
+    // Initialize categories from singular category field
+    if (initialData && initialData.category) {
+      base.categories = [initialData.category];
+    } else if (!isEditing) {
+      base.categories = ['historical'];
+    }
+
+    // Deriving tourType from isRecurring
+    if (initialData && (initialData as any).isRecurring !== undefined) {
+      base.tourType = (initialData as any).isRecurring ? 'recurring' : 'one-time';
+    }
+
+    // Map halalFriendly to isHalalCertified
+    if (initialData && (initialData as any).halalFriendly !== undefined) {
+      base.isHalalCertified = (initialData as any).halalFriendly;
+    }
+
+    // Map locationName to city (backend uses locationName as a general field)
+    if (initialData && (initialData as any).locationName) {
+      base.city = (initialData as any).locationName;
+    }
+
+    // Map countryCode to country name
+    if (initialData && (initialData as any).countryCode) {
+      const code = (initialData as any).countryCode.toUpperCase();
+      if (code === 'LB') base.country = 'Lebanon';
+      else if (code === 'TR') base.country = 'Turkey';
+    }
+
+    // Map instantBook to bookingMode
+    if (initialData && (initialData as any).instantBook !== undefined) {
+      base.bookingMode = (initialData as any).instantBook ? 'instant' : 'request';
+      base.instantBookEnabled = (initialData as any).instantBook;
+    }
+
+    // Parse JSON strings to objects/arrays
+    const jsonFields = [
+      'halalDetails', 'dynamicPricing', 'itinerary', 'inclusions',
+      'exclusions', 'requirements', 'whatToBring', 'tags', 'languages'
+    ];
+
+    jsonFields.forEach(field => {
+      const val = (initialData as any)?.[field];
+      if (typeof val === 'string' && val.trim()) {
+        try {
+          base[field] = JSON.parse(val);
+          
+          // Normalize dynamic pricing: scale decimals to percentages for UI
+          if (field === 'dynamicPricing' && base[field]) {
+            if (base[field].weekendMultiplier) base[field].weekendMultiplier = Math.round(base[field].weekendMultiplier * 100);
+            if (base[field].holidayMultiplier) base[field].holidayMultiplier = Math.round(base[field].holidayMultiplier * 100);
+          }
+
+          // Normalize itinerary durations to Xh Ym format
+          if (field === 'itinerary' && Array.isArray(base[field])) {
+            base[field] = base[field].map((item: any) => {
+              let d = item.duration || '0h 0m';
+              if (item.duration && (!item.duration.includes('h') || !item.duration.includes('m'))) {
+                const numeric = parseInt(item.duration) || 0;
+                if (item.duration.toLowerCase().includes('hour') || item.duration.toLowerCase().includes('hr')) {
+                   d = `${numeric}h 0m`;
+                } else {
+                   const h = Math.floor(numeric / 60);
+                   const m = numeric % 60;
+                   d = `${h}h ${m}m`;
+                }
+              }
+              return { ...item, duration: d };
+            });
+          }
+          if (field === 'languages') {
+            base.availableLanguages = base[field];
+          }
+        } catch (e) {
+          console.error(`Failed to parse ${field} from backend:`, e);
+        }
+      }
+    });
+
+    // Parse specific date JSON strings
+    ['recurringDates', 'excludedDates'].forEach(field => {
+      const val = (initialData as any)?.[field];
+      if (typeof val === 'string' && val.trim()) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            base[field] = parsed;
+          }
+        } catch (e) {
+          console.error(`Failed to parse ${field} from backend:`, e);
+        }
+      }
+    });
+
     // Parse recurringDays from string to array if it comes from backend
     if (initialData && typeof initialData.recurringDays === 'string' && initialData.recurringDays) {
       base.recurringDays = (initialData.recurringDays as string)
@@ -1682,7 +2089,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
     if (base.status) {
       base.status = base.status.toLowerCase() as any;
     }
-    
+
     return base as TourFormData;
   })
   const [isSaving, setIsSaving] = useState(false)
@@ -1724,7 +2131,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
   if (!isEditing && !isVerified) {
     return (
       <div className="min-h-screen pt-24 pb-12 px-4 bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 text-center shadow-xl"
@@ -1734,7 +2141,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Verification Required</h2>
           <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-            To create and manage tours, you need to complete a few verification steps first. 
+            To create and manage tours, you need to complete a few verification steps first.
             This helps us maintain a high-trust marketplace.
           </p>
 
@@ -1746,7 +2153,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
               </div>
               {!user?.emailVerified && <Link href="/auth/email-verification" className="text-xs font-bold text-blue-600">Complete</Link>}
             </div>
-            
+
             <div className={`flex items-center justify-between p-3 rounded-xl border ${user?.profileCompleted ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-800'}`}>
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${user?.profileCompleted ? 'bg-emerald-500' : 'bg-gray-300'}`} />
@@ -1779,7 +2186,18 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
   }
 
   const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      
+      // If switching to recurring, ensure we have a pattern (default to weekly)
+      if (field === 'tourType' && value === 'recurring') {
+        if (!next.recurrencePattern || next.recurrencePattern === 'none' as any) {
+          next.recurrencePattern = 'weekly';
+        }
+      }
+      
+      return next;
+    });
   }
 
   const validateForm = () => {
@@ -1813,7 +2231,9 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
     }
     if (formData.startDate) {
       const start = new Date(formData.startDate)
-      if (start < new Date()) {
+      // Only enforce future date on NEW tours. 
+      // For editing, allow the date to be in the past (it might be an old template).
+      if (!isEditing && start < new Date()) {
         toast.error('Start date must be in the future')
         return false
       }
@@ -1834,10 +2254,10 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
       const payload: any = {
         title: formData.title,
         description: formData.description,
-        category: formData.category,
+        category: formData.categories[0] || 'historical',
         locationName: formData.city, // Backend calls it locationName
         city: formData.city,
-        countryCode: formData.country === 'lebanon' ? 'LB' : 'TR',
+        countryCode: formData.country?.toLowerCase() === 'lebanon' ? 'LB' : 'TR',
         basePrice: formData.basePrice,
         currency: formData.currency,
         isPremium: formData.isPremium || false,
@@ -1853,8 +2273,12 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         excludedDates: formData.excludedDates && formData.excludedDates.length > 0 ? JSON.stringify(formData.excludedDates.map(d => new Date(d).toISOString())) : null,
         halalFriendly: formData.isHalalCertified,
         halalDetails: JSON.stringify(formData.halalDetails),
-        isFamilyFriendly: formData.isFamilyFriendly !== undefined ? formData.isFamilyFriendly : true,
-        dynamicPricing: JSON.stringify(formData.dynamicPricing),
+        isFamilyFriendly: formData.isFamilyFriendly !== undefined ? formData.isFamilyFriendly : false,
+        dynamicPricing: JSON.stringify({
+          ...formData.dynamicPricing,
+          weekendMultiplier: (formData.dynamicPricing.weekendMultiplier || 100) / 100,
+          holidayMultiplier: (formData.dynamicPricing.holidayMultiplier || 100) / 100
+        }),
         hasGroupDiscount: formData.groupDiscountEnabled,
         groupDiscountThreshold: formData.groupDiscountThreshold,
         groupDiscountPercent: formData.groupDiscountPercent,
@@ -1870,7 +2294,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         whatToBring: JSON.stringify(formData.whatToBring),
         durationHours: formData.durationHours,
         durationMinutes: formData.durationMinutes,
-        tags: JSON.stringify(formData.tags),
+        tags: JSON.stringify([...formData.tags, ...formData.categories.slice(1)]),
         languages: JSON.stringify(formData.availableLanguages)
       }
 
@@ -1895,7 +2319,8 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
             await addTourMedia(tour.id, {
               url: m.url,
               mediaType: m.type.toUpperCase(),
-              displayOrder: i
+              displayOrder: i,
+              caption: m.caption
             })
           }
         }
@@ -1912,7 +2337,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
 
   const handleSendForReview = async () => {
     if (!validateForm()) return
-    
+
     if (!isVerified) {
       toast.error('You must be fully verified to submit a tour for review.')
       return
@@ -1924,10 +2349,10 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
       const payload: any = {
         title: formData.title,
         description: formData.description,
-        category: formData.category,
+        category: formData.categories[0] || 'historical',
         locationName: formData.city,
         city: formData.city,
-        countryCode: formData.country === 'lebanon' ? 'LB' : 'TR',
+        countryCode: formData.country?.toLowerCase() === 'lebanon' ? 'LB' : 'TR',
         basePrice: formData.basePrice,
         currency: formData.currency,
         isPremium: formData.isPremium || false,
@@ -1943,7 +2368,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         excludedDates: formData.excludedDates && formData.excludedDates.length > 0 ? JSON.stringify(formData.excludedDates.map(d => new Date(d).toISOString())) : null,
         halalFriendly: formData.isHalalCertified,
         halalDetails: JSON.stringify(formData.halalDetails),
-        isFamilyFriendly: formData.isFamilyFriendly !== undefined ? formData.isFamilyFriendly : true,
+        isFamilyFriendly: formData.isFamilyFriendly !== undefined ? formData.isFamilyFriendly : false,
         dynamicPricing: JSON.stringify(formData.dynamicPricing),
         hasGroupDiscount: formData.groupDiscountEnabled,
         groupDiscountThreshold: formData.groupDiscountThreshold,
@@ -1960,7 +2385,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         whatToBring: JSON.stringify(formData.whatToBring),
         durationHours: formData.durationHours,
         durationMinutes: formData.durationMinutes,
-        tags: JSON.stringify(formData.tags),
+        tags: JSON.stringify([...formData.tags, ...formData.categories.slice(1)]),
         languages: JSON.stringify(formData.availableLanguages)
       }
 
@@ -1981,7 +2406,8 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
             await addTourMedia(tour.id, {
               url: m.url,
               mediaType: m.type.toUpperCase(),
-              displayOrder: i
+              displayOrder: i,
+              caption: m.caption
             })
           }
         }
@@ -2008,9 +2434,9 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
     <>
       {/* Page offset */}
       <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
-        
+
         <div className="container-safe mx-auto max-w-4xl py-8 sm:py-10">
-          
+
           {/* Status Banner for Pending Review */}
           {isEditing && formData.status === 'pending_review' && (
             <div className="mb-8 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2021,7 +2447,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
                     Tour is Under Review
                   </p>
                   <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
-                    This tour is currently locked for editing while our team reviews it. 
+                    This tour is currently locked for editing while our team reviews it.
                     If you need to make changes, you can withdraw it back to draft mode.
                   </p>
                 </div>
@@ -2076,7 +2502,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
               </button>
               <button
                 onClick={handleSendForReview}
-                disabled={isSaving}
+                disabled={isSaving || (isEditing && formData.status !== 'draft' && formData.status !== 'rejected')}
                 className=" flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed "
               >
                 {isSaving ? (
@@ -2099,13 +2525,13 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
           <div className="flex gap-2 mb-6">
             <button
               onClick={() => setActiveTab('edit')}
-              className={` px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300' } `}
+              className={` px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'} `}
             >
               Edit
             </button>
             <button
               onClick={() => setActiveTab('preview')}
-              className={` px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300' } `}
+              className={` px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'} `}
             >
               Preview
             </button>
@@ -2123,15 +2549,15 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
               <HalalSection formData={formData} onChange={handleChange} />
               <LanguagesSection formData={formData} onChange={handleChange} />
               <ItinerarySection formData={formData} onChange={handleChange} />
-              <InclusionsExclusionsSection 
-              formData={formData} 
-              onChange={handleChange} 
-            />
+              <InclusionsExclusionsSection
+                formData={formData}
+                onChange={handleChange}
+              />
 
-            <RequirementsSection 
-              formData={formData} 
-              onChange={handleChange} 
-            />
+              <RequirementsSection
+                formData={formData}
+                onChange={handleChange}
+              />
             </div>
           )}
 
@@ -2173,9 +2599,10 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
 export const INITIAL_FORM_DATA: TourFormData = {
   title: '',
   description: '',
-  category: 'historical',
+  category: 'historical', // Deprecated
+  categories: ['historical'],
   tags: [],
-  
+
   location: '',
   city: '',
   country: '',
@@ -2184,34 +2611,34 @@ export const INITIAL_FORM_DATA: TourFormData = {
     address: '',
     instructions: ''
   },
-  
+
   mainImage: '',
   gallery: [],
-  
+
   minCapacity: 1,
   maxCapacity: 10,
   bookingMode: 'instant',
   instantBookEnabled: true,
-  
+
   tourType: 'one-time',
   recurringDays: [],
   recurringUntil: undefined,
   recurringDates: [],
   excludedDates: [],
-  
+
   durationHours: 2,
   durationMinutes: 0,
-  
+
   basePrice: 50,
   currency: 'USD',
   dynamicPricing: {
     enabled: false
   },
-  
+
   groupDiscountEnabled: false,
   groupDiscountThreshold: 4,
   groupDiscountPercent: 5,
-  
+
   isHalalCertified: false,
   halalDetails: {
     prayerSpace: false,
@@ -2219,26 +2646,26 @@ export const INITIAL_FORM_DATA: TourFormData = {
     genderSensitiveGuides: false,
     mosqueVisits: false
   },
-  
+
   isPremium: false,
-  isFamilyFriendly: true,
-  
+  isFamilyFriendly: false,
+
   availableLanguages: [],
-  
+
   itinerary: [],
-  
+
   inclusions: [],
   exclusions: [],
-  
+
   requirements: [],
   whatToBring: [],
-  
+
   cancellationPolicy: {
     fullRefund: 48,
     partialRefund: 24,
     partialRefundPercent: 50,
     noRefund: 24
   },
-  
+
   status: 'draft'
 }

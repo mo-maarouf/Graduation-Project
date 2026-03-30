@@ -1,25 +1,24 @@
 // ============================================================================
-// BOOKING DETAIL PAGE
+// TRAVELER BOOKING DETAIL PAGE — WIRED TO REAL BACKEND
 // ============================================================================
-// LOCATION: /frontend/src/app/bookings/[id]/page.tsx
-// 
-// PURPOSE: View detailed information about a specific booking
-// 
-// FEATURES:
-// - All booking details
-// - QR ticket
-// - Cancellation with refund calculation
-// - Contact guide
-// - Download invoice
-// - View tour details
+// LOCATION: /frontend/app/bookings/[id]/page.tsx
+//
+// PURPOSE: Full booking details for a traveler, including:
+//   - Tour info, meeting point, price, QR ticket
+//   - Cancellation with real refund calculation from backend
+//   - Download invoice
+//   - "Rejected" UI alias: if status is Cancelled and cancellationReason
+//     contains "guide", display as "Rejected by Guide"
+//
+// DATA SOURCE: getTravelerBooking(id) → BookingResponse
+// MUTATION: cancelBooking(id, reason) → cancels + returns refundPercent
 // ============================================================================
 
 'use client'
 
-import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect, use } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import toast from 'react-hot-toast'
 import {
   Calendar,
@@ -36,149 +35,223 @@ import {
   CheckCircle,
   FileText,
   Star,
-  Shield,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  Loader2,
+  User
 } from 'lucide-react'
 import PageLayout from '@/src/components/layout/PageLayout'
-import { tr } from 'framer-motion/client'
 
-// Mock booking data - replace with API call
-const MOCK_BOOKING = {
-  id: 'B123456',
-  bookingReference: 'SH-1234-5678',
-  tourId: '1',
-  tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-  tourImage: '/images/tours/istanbul-ottoman.jpg',
-  guideId: 'guide-123',
-  guideName: 'Mehmet Yilmaz',
-  guideAvatar: '/images/guides/mehmet.jpg',
-  guideVerified: true,
-  date: '2026-04-15T09:00:00Z',
-  duration: '4 hours',
-  meetingPoint: {
-    name: 'Sultanahmet Square Fountain',
-    address: 'Sultanahmet Meydanı, Fatih/İstanbul',
-    instructions: 'Look for the guide holding an orange sign'
-  },
-  travelers: 2,
-  totalPrice: 178,
-  currency: 'USD',
-  basePrice: 89,
-  discounts: [
-    { type: 'group', amount: 9, description: 'Group discount (5%)' }
-  ],
-  platformFee: 17.8,
-  status: 'confirmed',
-  bookedAt: '2026-03-20T14:30:00Z',
-  cancellationDeadline: '2026-02-15T09:00:00Z',
-  qrCode: 'QR-BOOKING-123',
-  hasReview: false,
-  canReview: true,
-  paymentMethod: 'Visa •••• 4242'
+import { getTravelerBooking, cancelBooking } from '@/src/lib/api/tours'
+import { BookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+// Derive the UI-facing display status from the backend status.
+// The backend has no "Rejected" status — it's a Cancelled booking where
+// the cancellationReason contains "guide" (case-insensitive).
+function getDisplayStatus(booking: BookingResponse): string {
+  if (
+    booking.status === BookingStatus.Cancelled &&
+    booking.cancellationReason?.toLowerCase().includes('guide')
+  ) {
+    return 'Rejected'
+  }
+  return booking.status
 }
 
-export default function BookingDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const [showCancelModal, setShowCancelModal] = useState(false)
-  const [cancellationDetails, setCancellationDetails] = useState({
-    refundAmount: 0,
-    refundPercent: 0,
-    hoursUntilDeadline: 0
-  })
-  const [booking, setBooking] = useState(MOCK_BOOKING)
+// Status badge colors — keyed by either backend status or UI alias
+function getStatusStyle(displayStatus: string) {
+  switch (displayStatus) {
+    case BookingStatus.Confirmed:
+    case BookingStatus.InProgress:
+      return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+    case BookingStatus.PendingGuide:
+    case BookingStatus.PendingPayment:
+      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+    case BookingStatus.Completed:
+      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+    case 'Rejected':
+      return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+  }
+}
 
-  // In Phase 2: fetch booking by ID
-  const bookingId = params.id
-
-  const date = new Date(booking.date)
-  const formattedDate = date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  })
-  const formattedTime = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-
-  const bookedDate = new Date(booking.bookedAt)
-  const formattedBookedDate = bookedDate.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  })
-
-  // Check if cancellation is allowed
+// Cancellation policy: >48h = 100%, 24–48h = 50%, <24h = 0%
+// We compute this client-side for the preview — the backend re-validates on
+// the actual cancel request and returns the authoritative refundPercent.
+function computeRefundPreview(startTimeUtc: string) {
   const now = new Date()
-  const deadline = new Date(booking.cancellationDeadline)
-  const canCancel = booking.status === 'confirmed' && now < deadline
+  const start = new Date(startTimeUtc)
+  const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60)
 
-  // Calculate hours until deadline
-  const hoursUntilDeadline = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60))
-  // Calculate cancellation details when modal opens
-const calculateCancellation = () => {
-  const now = new Date()
-  const deadline = new Date(booking.cancellationDeadline)
-  const hoursUntil = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60))
-  
   let refundPercent = 0
-  if (hoursUntil > 48) refundPercent = 100
-  else if (hoursUntil > 24) refundPercent = 50
-  else refundPercent = 0
-  
-  setCancellationDetails({
-    refundAmount: (booking.totalPrice * refundPercent) / 100,
-    refundPercent,
-    hoursUntilDeadline: hoursUntil
-  })
-  setShowCancelModal(true)
+  if (hoursUntilStart > 48) refundPercent = 100
+  else if (hoursUntilStart > 24) refundPercent = 50
+
+  return { refundPercent, hoursUntilStart }
 }
-const handleDownloadInvoice = () => {
-  const invoice = `
-SAFARIHUB - INVOICE
-===================
-Booking Reference: ${booking.bookingReference}
-Date: ${new Date().toLocaleDateString()}
 
-Tour: ${booking.tourTitle}
-Date: ${formattedDate} at ${formattedTime}
-Guide: ${booking.guideName}
-Travelers: ${booking.travelers}
-Total: $${booking.totalPrice}
-Status: ${booking.status}
-
-Cancellation Policy:
-- 100% refund up to 48h before
-- 50% refund 24-48h before
-- No refund within 24h
-
-Thank you for choosing SafariHub!
-  `
-  
-  const blob = new Blob([invoice], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `invoice-${booking.bookingReference}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
-  
-  toast.success('Invoice downloaded!')
-}
-const formatHoursRemaining = (hours: number) => {
+function formatHoursRemaining(hours: number) {
   if (hours < 0) return 'Deadline passed'
   if (hours < 24) return `${Math.ceil(hours)} hours remaining`
   if (hours < 48) return `${Math.floor(hours)} hours remaining`
   return `${Math.floor(hours / 24)} days remaining`
 }
 
+// ============================================================================
+// MAIN PAGE
+// ============================================================================
+
+interface BookingDetailPageProps {
+  params: Promise<{ id: string }>
+}
+
+export default function BookingDetailPage({ params }: BookingDetailPageProps) {
+  const { id: bookingId } = use(params)
+  const router = useRouter()
+
+  const [booking, setBooking] = useState<BookingResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+
+  // ── Fetch booking from backend ──────────────────────────────────────────
+
+  useEffect(() => {
+    const fetchBooking = async () => {
+      setIsLoading(true)
+      try {
+        const res = await getTravelerBooking(Number(bookingId))
+        setBooking(res.data)
+      } catch {
+        toast.error('Booking not found')
+        router.push('/dashboard/traveler/bookings')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchBooking()
+  }, [bookingId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Cancel booking — calls real API with { data } syntax ───────────────
+  // Backend computes the authoritative refundPercent and returns it.
+
+  const handleCancelBooking = async () => {
+    if (!booking) return
+    setIsCancelling(true)
+    try {
+      const res = await cancelBooking(booking.id, cancelReason || undefined)
+      toast.success(
+        `Booking cancelled! ${res.data.refundPercent ? `${res.data.refundPercent}% refund` : 'No refund (within 24h window)'}`
+      )
+      setShowCancelModal(false)
+      // Re-fetch to show updated status
+      const updated = await getTravelerBooking(booking.id)
+      setBooking(updated.data)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to cancel booking')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  // ── Invoice download (text placeholder) ────────────────────────────────
+
+  const handleDownloadInvoice = () => {
+    if (!booking) return
+    const startDate = new Date(booking.startTimeUtc)
+    const invoice = `
+TRAVEL MARKET - INVOICE
+===================
+Booking #${booking.id}
+Date: ${new Date().toLocaleDateString()}
+
+Tour: ${booking.tourTitle}
+Date: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString()}
+Travelers: ${booking.peopleCount}
+Total: ${booking.currency} ${booking.finalPrice.toFixed(2)}
+Status: ${booking.status}
+
+Cancellation Policy:
+- 100% refund up to 48h before tour start
+- 50% refund 24-48h before tour start
+- No refund within 24h of tour start
+
+Thank you for choosing TravelMarket!
+  `
+
+    const blob = new Blob([invoice], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoice-booking-${booking.id}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    toast.success('Invoice downloaded!')
+  }
+
+  // ── Loading state ──────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      </PageLayout>
+    )
+  }
+
+  if (!booking) {
+    return (
+      <PageLayout>
+        <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Booking Not Found</h1>
+            <Link href="/dashboard/traveler/bookings" className="text-blue-600 hover:underline">
+              Back to Bookings
+            </Link>
+          </div>
+        </div>
+      </PageLayout>
+    )
+  }
+
+  // ── Derived values ─────────────────────────────────────────────────────
+
+  const displayStatus = getDisplayStatus(booking)
+  const statusStyle = getStatusStyle(displayStatus)
+  const startDate = new Date(booking.startTimeUtc)
+  const formattedDate = startDate.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  })
+  const formattedTime = startDate.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit'
+  })
+  const bookedDate = new Date(booking.createdAtUtc).toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric'
+  })
+
+  // Can only cancel Confirmed or PendingGuide bookings
+  const canCancel = (
+    booking.status === BookingStatus.Confirmed ||
+    booking.status === BookingStatus.PendingGuide
+  )
+  const { refundPercent: previewRefund, hoursUntilStart } = canCancel
+    ? computeRefundPreview(booking.startTimeUtc)
+    : { refundPercent: 0, hoursUntilStart: 0 }
+
   return (
     <PageLayout>
       <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="container-safe mx-auto max-w-5xl py-8 sm:py-10">
-          
+
           {/* Back Button */}
           <Link
             href="/dashboard/traveler/bookings"
@@ -195,22 +268,17 @@ const formatHoursRemaining = (hours: number) => {
                 Booking Details
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Reference: {booking.bookingReference}
+                Booking #{booking.id}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                booking.status === 'confirmed'
-                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                  : booking.status === 'pending'
-                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                    : booking.status === 'completed'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-              }`}>
-                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${statusStyle}`}>
+                {displayStatus}
               </span>
-              <button className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+              <button
+                onClick={handleDownloadInvoice}
+                className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
                 <Download className="w-4 h-4" />
               </button>
             </div>
@@ -218,15 +286,19 @@ const formatHoursRemaining = (hours: number) => {
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Left Column - Main Info */}
             <div className="lg:col-span-2 space-y-6">
-              
+
               {/* Tour Card */}
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
                 <div className="flex flex-col sm:flex-row">
-                  <div className="relative w-full sm:w-48 h-32 bg-gray-200 dark:bg-gray-800">
-                    <Image src={booking.tourImage} alt={booking.tourTitle} fill className="object-cover" />
+                  <div className="relative w-full sm:w-48 h-32 bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
+                    {booking.tourCoverImageUrl ? (
+                      <img src={booking.tourCoverImageUrl} alt={booking.tourTitle} className="w-full h-full object-cover" />
+                    ) : (
+                      <Calendar className="w-10 h-10 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1 p-5">
                     <h2 className="font-bold text-gray-900 dark:text-white mb-2">
@@ -237,17 +309,15 @@ const formatHoursRemaining = (hours: number) => {
                         <Calendar className="w-4 h-4" />
                         <span>{formattedDate} at {formattedTime}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{booking.duration}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>{booking.meetingPoint.name}</span>
-                      </div>
+                      {booking.meetingPointName && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>{booking.meetingPointName}</span>
+                        </div>
+                      )}
                     </div>
                     <Link
-                      href={`/tours/${booking.tourId}`}
+                      href={`/tours/${booking.occurrenceId}`}
                       className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                     >
                       View tour details
@@ -256,116 +326,89 @@ const formatHoursRemaining = (hours: number) => {
                 </div>
               </div>
 
-              {/* Meeting Point Details */}
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  Meeting Point
-                </h3>
-                <p className="font-medium text-gray-900 dark:text-white mb-1">
-                  {booking.meetingPoint.name}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  {booking.meetingPoint.address}
-                </p>
-                {booking.meetingPoint.instructions && (
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg text-sm text-blue-800 dark:text-blue-300">
-                    {booking.meetingPoint.instructions}
-                  </div>
-                )}
-              </div>
+              {/* Meeting Point */}
+              {booking.meetingPointName && (
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Meeting Point
+                  </h3>
+                  <p className="font-medium text-gray-900 dark:text-white mb-1">
+                    {booking.meetingPointName}
+                  </p>
+                </div>
+              )}
 
-              {/* Price Breakdown */}
+              {/* Price Summary */}
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
                 <h3 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  Price Breakdown
+                  Price Summary
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">
-                      {booking.currency === 'USD' && '$'}
-                      {booking.basePrice} × {booking.travelers} {booking.travelers === 1 ? 'person' : 'people'}
+                      {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}
                     </span>
                     <span className="text-gray-900 dark:text-white">
-                      ${booking.basePrice * booking.travelers}
+                      {booking.currency} {booking.finalPrice.toFixed(2)}
                     </span>
-                  </div>
-                  {booking.discounts.map((discount, i) => (
-                    <div key={i} className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                      <span>{discount.description}</span>
-                      <span>-${discount.amount}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>Platform fee</span>
-                    <span>${booking.platformFee}</span>
                   </div>
                   <div className="flex justify-between font-bold pt-2 border-t border-gray-200 dark:border-gray-800">
                     <span className="text-gray-900 dark:text-white">Total</span>
                     <span className="text-xl text-gray-900 dark:text-white">
-                      ${booking.totalPrice}
+                      {booking.currency} {booking.finalPrice.toFixed(2)}
                     </span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                  Paid via {booking.paymentMethod} on {formattedBookedDate}
+                  Booked on {bookedDate} • {booking.bookingMode === 'Instant' ? 'Instant Book' : 'Request to Book'}
                 </p>
               </div>
+
+              {/* Rejection / Cancellation Reason banner */}
+              {booking.cancellationReason && (
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-red-800 dark:text-red-300 mb-1">
+                        {displayStatus === 'Rejected' ? 'Rejected by Guide' : 'Cancellation Reason'}
+                      </p>
+                      <p className="text-sm text-red-700 dark:text-red-400">
+                        {booking.cancellationReason}
+                      </p>
+                      {booking.refundPercent != null && (
+                        <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                          Refund: {booking.refundPercent}% of {booking.currency} {booking.finalPrice.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Sidebar */}
             <div className="space-y-6">
-              
-              {/* Guide Card */}
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-3">
-                  Your Guide
-                </h3>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                    <Image src={booking.guideAvatar} alt={booking.guideName} width={48} height={48} className="object-cover" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">
-                      {booking.guideName}
-                    </p>
-                    {booking.guideVerified && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" />
-                        Verified Guide
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Link
-                    href={`/messages/new?user=${booking.guideId}`}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Message Guide
-                  </Link>
-                </div>
-              </div>
 
-              {/* QR Ticket Card */}
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <QrCode className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <h3 className="font-bold text-gray-900 dark:text-white">QR Ticket</h3>
+              {/* QR Ticket Card — only for Confirmed bookings with a QR code */}
+              {booking.qrCode && (
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <QrCode className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-bold text-gray-900 dark:text-white">QR Ticket</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Show this QR code to your guide at the meeting point
+                  </p>
+                  {/* Display the QR token — in production, render with a QR library */}
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
+                    <QrCode className="w-20 h-20 text-gray-900 dark:text-gray-100 mx-auto mb-2" />
+                    <p className="text-xs font-mono text-gray-500 break-all">{booking.qrCode}</p>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Show this QR code to your guide at the meeting point
-                </p>
-                <Link
-                  href={`/bookings/${bookingId}/ticket`}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <QrCode className="w-4 h-4" />
-                  View Ticket
-                </Link>
-              </div>
+              )}
 
               {/* Actions Card */}
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
@@ -373,46 +416,49 @@ const formatHoursRemaining = (hours: number) => {
                   Actions
                 </h3>
                 <div className="space-y-2">
+                  {/* Cancel button — only for cancellable bookings */}
                   {canCancel && (
                     <button
-                      onClick={calculateCancellation}
+                      onClick={() => setShowCancelModal(true)}
                       className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
                     >
                       <XCircle className="w-4 h-4" />
                       Cancel Booking
                     </button>
                   )}
-                  {booking.canReview && !booking.hasReview && (
-                    <Link
-                      href={`/bookings/${bookingId}/review`}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  {/* Review — future card, disabled */}
+                  {booking.status === BookingStatus.Completed && (
+                    <button
+                      disabled
+                      title="Reviews coming soon"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-600/50 text-white/50 text-sm font-medium rounded-lg cursor-not-allowed"
                     >
                       <Star className="w-4 h-4" />
                       Write Review
-                    </Link>
+                    </button>
                   )}
-                  {/* Show "Review Submitted" if already reviewed */}
-    {booking.hasReview && (
-      <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed">
-        <CheckCircle className="w-4 h-4" />
-        Review Submitted
-      </div>
-    )}
-                  <button onClick={handleDownloadInvoice} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <button
+                    onClick={handleDownloadInvoice}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
                     <FileText className="w-4 h-4" />
                     Download Invoice
                   </button>
                 </div>
 
-                {/* Cancellation Warning */}
-                {booking.status === 'confirmed' && (
+                {/* Cancellation policy reminder */}
+                {canCancel && (
                   <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
                     <p className="text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1">
                       <ClockIcon className="w-3 h-3 mt-0.5 flex-shrink-0" />
                       <span>
-                        {canCancel 
-                          ? `Cancel within ${formatHoursRemaining(hoursUntilDeadline)} hours for ${cancellationDetails.refundPercent}% refund`
-                          : 'Cancellation deadline has passed'}
+                        {hoursUntilStart > 48
+                          ? `Full refund if cancelled within ${formatHoursRemaining(hoursUntilStart)}`
+                          : hoursUntilStart > 24
+                            ? `50% refund - ${formatHoursRemaining(hoursUntilStart)}`
+                            : hoursUntilStart > 0
+                              ? `No refund - tour starts in ${Math.ceil(hoursUntilStart)} hours`
+                              : 'Cancellation deadline has passed'}
                       </span>
                     </p>
                   </div>
@@ -439,77 +485,93 @@ const formatHoursRemaining = (hours: number) => {
         </div>
       </div>
 
-      {/* Cancellation Modal - To be implemented */}
-      {/* Cancellation Modal - To be implemented */}
-{showCancelModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 px-6 py-4">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <XCircle className="w-5 h-5" />
-          Cancel Booking
-        </h3>
-      </div>
+      {/* ── Cancellation Confirmation Modal ──────────────────────────────── */}
+      {showCancelModal && booking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 px-6 py-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <XCircle className="w-5 h-5" />
+                Cancel Booking
+              </h3>
+            </div>
 
-      {/* Content */}
-      <div className="p-6 space-y-4">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Are you sure you want to cancel <span className="font-semibold text-gray-900 dark:text-white">{booking.tourTitle}</span>?
-        </p>
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Are you sure you want to cancel <span className="font-semibold text-gray-900 dark:text-white">{booking.tourTitle}</span>?
+              </p>
 
-        {/* Refund info */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Booking amount</span>
-            <span className="font-semibold text-gray-900 dark:text-white">
-              ${booking.totalPrice}
-            </span>
+              {/* Optional cancellation reason */}
+              <input
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Reason for cancellation (optional)"
+                className="
+                  w-full px-3 py-2
+                  bg-gray-50 dark:bg-gray-800
+                  border border-gray-200 dark:border-gray-700
+                  rounded-lg text-sm
+                  text-gray-900 dark:text-white
+                  placeholder-gray-400
+                  focus:outline-none focus:ring-2 focus:ring-red-500/30
+                "
+              />
+
+              {/* Refund preview — computed client-side, backend is authoritative */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Booking amount</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {booking.currency} {booking.finalPrice.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Refund policy</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    {previewRefund}%
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <span className="font-medium text-gray-900 dark:text-white">You&apos;ll get</span>
+                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {booking.currency} {((booking.finalPrice * previewRefund) / 100).toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                  {previewRefund === 100 && 'Full refund (more than 48h before tour)'}
+                  {previewRefund === 50 && '50% refund (24-48h before tour)'}
+                  {previewRefund === 0 && 'No refund (within 24h of tour start)'}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Keep Booking
+                </button>
+                <button
+                  onClick={handleCancelBooking}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isCancelling ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
+                  Confirm Cancel
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Refund policy</span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400">
-              {cancellationDetails.refundPercent}%
-            </span>
-          </div>
-          <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
-            <span className="font-medium text-gray-900 dark:text-white">You'll get</span>
-            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              ${cancellationDetails.refundAmount.toFixed(2)}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-            {cancellationDetails.refundPercent === 100 && 'Full refund (minus platform fee)'}
-            {cancellationDetails.refundPercent === 50 && '50% refund'}
-            {cancellationDetails.refundPercent === 0 && 'No refund (cancellation within 24h)'}
-          </p>
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={() => setShowCancelModal(false)}
-            className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            Keep Booking
-          </button>
-          <button
-            onClick={() => {
-              // Phase 2: API call to cancel
-              toast.success('Booking cancelled! Refund will be processed.')
-              setShowCancelModal(false)
-              // Redirect to bookings page after 2 seconds
-              setTimeout(() => router.push('/dashboard/traveler/bookings'), 2000)
-            }}
-            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-          >
-            Confirm Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </PageLayout>
   )
 }

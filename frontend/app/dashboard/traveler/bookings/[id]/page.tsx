@@ -1,431 +1,456 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { motion, AnimatePresence } from 'framer-motion'
-import { getTravelerBooking, cancelBooking } from '@/src/lib/api/tours'
-import { BookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
+import { QRCodeCanvas } from 'qrcode.react'
 import {
-    Calendar,
-    Clock,
-    MapPin,
-    CheckCircle,
-    XCircle,
-    AlertCircle,
-    ChevronLeft,
-    Ticket,
-    Download,
-    Star,
-    MessageSquare,
-    Phone,
-    Mail,
-    Shield,
-    Info,
-    ArrowRight,
-    Zap
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  DollarSign,
+  QrCode,
+  Download,
+  MessageSquare,
+  AlertCircle,
+  ChevronLeft,
+  XCircle,
+  CheckCircle,
+  FileText,
+  Star,
+  Clock as ClockIcon,
+  Loader2,
+  User,
+  Phone,
+  Smartphone,
+  RefreshCw
 } from 'lucide-react'
 
+import { getTravelerBooking, cancelBooking } from '@/src/lib/api/tours'
+import { BookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
+
 // ============================================================================
-// STATUS BADGE COMPONENT
+// HELPERS
 // ============================================================================
 
-function StatusBadge({ status }: { status: BookingStatus }) {
-    const statusConfig = {
-        [BookingStatus.Confirmed]: {
-            bg: 'bg-emerald-100 dark:bg-emerald-950/30',
-            text: 'text-emerald-700 dark:text-emerald-300',
-            icon: CheckCircle,
-            label: 'Confirmed'
-        },
-        [BookingStatus.PendingGuide]: {
-            bg: 'bg-amber-100 dark:bg-amber-950/30',
-            text: 'text-amber-700 dark:text-amber-300',
-            icon: Clock,
-            label: 'Pending Guide Approval'
-        },
-        [BookingStatus.PendingPayment]: {
-            bg: 'bg-indigo-100 dark:bg-indigo-950/30',
-            text: 'text-indigo-700 dark:text-indigo-300',
-            icon: Clock,
-            label: 'Pending Payment'
-        },
-        [BookingStatus.Completed]: {
-            bg: 'bg-blue-100 dark:bg-blue-950/30',
-            text: 'text-blue-700 dark:text-blue-300',
-            icon: CheckCircle,
-            label: 'Completed'
-        },
-        [BookingStatus.Cancelled]: {
-            bg: 'bg-red-100 dark:bg-red-950/30',
-            text: 'text-red-700 dark:text-red-300',
-            icon: XCircle,
-            label: 'Cancelled'
-        },
-        [BookingStatus.Rejected]: {
-            bg: 'bg-gray-100 dark:bg-gray-800',
-            text: 'text-gray-700 dark:text-gray-300',
-            icon: XCircle,
-            label: 'Rejected'
-        },
-        [BookingStatus.Expired]: {
-            bg: 'bg-gray-100 dark:bg-gray-800',
-            text: 'text-gray-500 dark:text-gray-400',
-            icon: AlertCircle,
-            label: 'Expired'
-        }
-    }
-
-    const config = statusConfig[status] || statusConfig[BookingStatus.PendingGuide]
-    const Icon = config.icon
-
-    return (
-        <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black border border-current shadow-sm ${config.bg} ${config.text}`}>
-            <Icon className="w-3.5 h-3.5" />
-            {config.label}
-        </span>
-    )
+// Derive the UI-facing display status from the backend status.
+// The backend has no "Rejected" status — it's a Cancelled booking where
+// the cancellationReason contains "guide" (case-insensitive).
+function getDisplayStatus(booking: BookingResponse): string {
+  if (
+    booking.status === BookingStatus.Cancelled &&
+    booking.cancellationReason?.toLowerCase().includes('guide')
+  ) {
+    return 'Rejected'
+  }
+  return booking.status
 }
 
-// ============================================================================
-// CANCELLATION MODAL
-// ============================================================================
+// Status badge colors — keyed by either backend status or UI alias
+function getStatusStyle(displayStatus: string) {
+  switch (displayStatus) {
+    case BookingStatus.Confirmed:
+    case BookingStatus.InProgress:
+      return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+    case BookingStatus.PendingGuide:
+    case BookingStatus.PendingPayment:
+      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+    case BookingStatus.Completed:
+      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+    case 'Rejected':
+      return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+  }
+}
 
-function CancellationModal({ 
-    booking, 
-    isOpen, 
-    onClose, 
-    onConfirm, 
-    isLoading 
-}: { 
-    booking: BookingResponse, 
-    isOpen: boolean, 
-    onClose: () => void, 
-    onConfirm: () => void,
-    isLoading: boolean
-}) {
-    if (!isOpen) return null
+// Cancellation policy: >48h = 100%, 24–48h = 50%, <24h = 0%
+function computeRefundPreview(startTimeUtc: string) {
+  const now = new Date()
+  const start = new Date(startTimeUtc)
+  const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60)
 
-    const now = new Date()
-    const tourDate = new Date(booking.startTimeUtc)
-    const hoursDiff = (tourDate.getTime() - now.getTime()) / (1000 * 60 * 60)
+  let refundPercent = 0
+  if (hoursUntilStart > 48) refundPercent = 100
+  else if (hoursUntilStart > 24) refundPercent = 50
 
-    let refundPercent = 0
-    if (hoursDiff > 48) refundPercent = 100
-    else if (hoursDiff > 24) refundPercent = 50
+  return { refundPercent, hoursUntilStart }
+}
 
-    const refundAmount = (booking.finalPrice * refundPercent) / 100
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
-            >
-                <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                    <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                        <AlertCircle className="w-6 h-6 text-red-600" />
-                        Cancel Booking?
-                    </h3>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        Are you sure you want to cancel your booking for <span className="font-bold text-gray-900 dark:text-white">{booking.tourTitle}</span>?
-                    </p>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl space-y-2 border border-gray-100 dark:border-gray-700">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Refund Policy</span>
-                            <span className="font-bold text-amber-600">{refundPercent}% Refund</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">Estimated Refund</span>
-                            <span className="text-xl font-black text-emerald-600">{booking.currency} {refundAmount.toFixed(2)}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-6 bg-gray-50 dark:bg-gray-800 flex gap-3">
-                    <button 
-                        onClick={onClose}
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 font-bold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-all"
-                    >
-                        Keep Booking
-                    </button>
-                    <button 
-                        onClick={onConfirm}
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all"
-                    >
-                        {isLoading ? 'Cancelling...' : 'Confirm Cancel'}
-                    </button>
-                </div>
-            </motion.div>
-        </div>
-    )
+function formatHoursRemaining(hours: number) {
+  if (hours < 0) return 'Deadline passed'
+  if (hours < 24) return `${Math.ceil(hours)} hours remaining`
+  if (hours < 48) return `${Math.floor(hours)} hours remaining`
+  return `${Math.floor(hours / 24)} days remaining`
 }
 
 // ============================================================================
 // MAIN PAGE
 // ============================================================================
 
-export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params)
-    const router = useRouter()
-    const [booking, setBooking] = useState<BookingResponse | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
-    const [showCancelModal, setShowCancelModal] = useState(false)
-    const [isCancelling, setIsCancelling] = useState(false)
+interface BookingDetailPageProps {
+  params: Promise<{ id: string }>
+}
 
-    useEffect(() => {
-        fetchBooking()
-    }, [id])
+export default function BookingDetailPage({ params }: BookingDetailPageProps) {
+  const { id: bookingId } = use(params)
+  const router = useRouter()
 
+  const [booking, setBooking] = useState<BookingResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+
+  useEffect(() => {
     const fetchBooking = async () => {
-        setIsLoading(true)
-        try {
-            const res = await getTravelerBooking(Number(id))
-            setBooking(res.data)
-        } catch (err: any) {
-            console.error('Failed to fetch booking:', err)
-            toast.error('Booking not found or access denied')
-            router.push('/dashboard/traveler/bookings')
-        } finally {
-            setIsLoading(false)
-        }
+      setIsLoading(true)
+      try {
+        const res = await getTravelerBooking(Number(bookingId))
+        setBooking(res.data)
+      } catch {
+        toast.error('Booking not found')
+        router.push('/dashboard/traveler/bookings')
+      } finally {
+        setIsLoading(false)
+      }
     }
+    fetchBooking()
+  }, [bookingId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleCancel = async () => {
-        setIsCancelling(true)
-        try {
-            await cancelBooking(Number(id))
-            toast.success('Booking cancelled successfully')
-            fetchBooking()
-            setShowCancelModal(false)
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Cancellation failed')
-        } finally {
-            setIsCancelling(false)
-        }
+  const handleCancelBooking = async () => {
+    if (!booking) return
+    setIsCancelling(true)
+    try {
+      const res = await cancelBooking(booking.id, cancelReason || undefined)
+      toast.success(
+        `Booking cancelled! ${res.data.refundPercent ? `${res.data.refundPercent}% refund` : 'No refund (within 24h window)'}`
+      )
+      setShowCancelModal(false)
+      const updated = await getTravelerBooking(booking.id)
+      setBooking(updated.data)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to cancel booking')
+    } finally {
+      setIsCancelling(false)
     }
+  }
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen pt-24 flex flex-col items-center justify-center gap-4 bg-gray-50 dark:bg-gray-950">
-                <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin" />
-                <p className="text-gray-500 font-bold animate-pulse">Loading booking details...</p>
-            </div>
-        )
-    }
-
-    if (!booking) return null
-
+  const handleDownloadInvoice = () => {
+    if (!booking) return
     const startDate = new Date(booking.startTimeUtc)
-    const formattedDate = startDate.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-    })
-    const formattedTime = startDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit'
-    })
+    const invoice = `
+TRAVEL MARKET - INVOICE
+===================
+Booking #${booking.id}
+Date: ${new Date().toLocaleDateString()}
 
-    const canCancel = (booking.status === BookingStatus.Confirmed || booking.status === BookingStatus.PendingGuide) && startDate.getTime() > Date.now()
+Tour: ${booking.tourTitle}
+Date: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString()}
+Travelers: ${booking.peopleCount}
+Total: ${booking.currency} ${booking.finalPrice.toFixed(2)}
+Status: ${booking.status}
 
+Thank you for choosing TravelMarket!
+  `
+    const blob = new Blob([invoice], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoice-booking-${booking.id}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Invoice downloaded!')
+  }
+
+  if (isLoading) {
     return (
-        <div className="min-h-screen pt-24 pb-20 bg-gray-50 dark:bg-gray-950">
-            <div className="container-safe mx-auto max-w-4xl px-4">
-                
-                {/* Back button */}
-                <Link 
-                    href="/dashboard/traveler/bookings"
-                    className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 font-bold transition-colors mb-8 group"
-                >
-                    <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    Back to My Bookings
-                </Link>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* LEFT COLUMN: Main Info */}
-                    <div className="lg:col-span-2 space-y-8">
-                        
-                        {/* Header Section */}
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-200/50 dark:border-gray-800/50 shadow-xl overflow-hidden relative"
-                        >
-                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
-                            
-                            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                                <div className="space-y-4">
-                                    <StatusBadge status={booking.status} />
-                                    <h1 className="text-3xl font-black text-gray-900 dark:text-white leading-tight">
-                                        {booking.tourTitle}
-                                    </h1>
-                                    <div className="flex flex-wrap gap-6 text-sm">
-                                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                                            <Calendar className="w-4 h-4 text-blue-500" />
-                                            <span className="font-bold">{formattedDate}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                                            <Clock className="w-4 h-4 text-blue-500" />
-                                            <span className="font-bold">{formattedTime}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center flex-shrink-0 group">
-                                    <Ticket className="w-10 h-10 text-blue-600 group-hover:rotate-12 transition-transform" />
-                                </div>
-                            </div>
-                        </motion.div>
-
-                        {/* Meeting Point & Info */}
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                            className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-200/50 dark:border-gray-800/50 shadow-xl space-y-6"
-                        >
-                            <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                                <MapPin className="w-6 h-6 text-red-500" />
-                                Meeting Point
-                            </h3>
-                            <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800">
-                                <p className="font-black text-gray-900 dark:text-white mb-2">{booking.meetingPointName || 'No meeting point specified'}</p>
-                                <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-                                    {/* Real meeting instructions would go here */}
-                                    Please arrive at least 15 minutes before the tour start time to meet your guide. 
-                                    A digital copy of your ticket is required for check-in.
-                                </p>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-900/30 flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                                        <Info className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-black text-blue-500 tracking-widest">Requirements</p>
-                                        <p className="text-xs font-bold text-gray-700 dark:text-gray-300">ID Required</p>
-                                    </div>
-                                </div>
-                                <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-900/30 flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                                        <Shield className="w-5 h-5 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-black text-emerald-500 tracking-widest">Safety</p>
-                                        <p className="text-xs font-bold text-gray-700 dark:text-gray-300">Verified Guide</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* RIGHT COLUMN: Sidebar Summary */}
-                    <div className="space-y-6">
-                        
-                        {/* Summary Card */}
-                        <motion.div 
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200/50 dark:border-gray-800/50 shadow-xl overflow-hidden relative sticky top-24"
-                        >
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
-                            
-                            <h3 className="text-lg font-black text-gray-900 dark:text-white mb-6 uppercase tracking-wider text-center">
-                                Booking Summary
-                            </h3>
-
-                            <div className="space-y-4 mb-8">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500">Booking ID</span>
-                                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded font-bold text-gray-800 dark:text-gray-200">
-                                        SH-{booking.id.toString().padStart(4, '0')}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500">Travelers</span>
-                                    <span className="font-bold text-gray-900 dark:text-white">
-                                        {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500">Total Price</span>
-                                    <span className="text-2xl font-black text-blue-600">
-                                        {booking.currency} {booking.finalPrice.toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                {booking.status === BookingStatus.Confirmed && (
-                                    <Link 
-                                        href={`/dashboard/traveler/bookings/${id}/ticket`}
-                                        className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all group"
-                                    >
-                                        <Ticket className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                                        Access Ticket
-                                        <ArrowRight className="w-4 h-4 opacity-50" />
-                                    </Link>
-                                )}
-
-                                <button className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all active:scale-95">
-                                    <Download className="w-5 h-5" />
-                                    Download Receipt
-                                </button>
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs">
-                                        <Phone className="w-4 h-4" />
-                                        Call
-                                    </button>
-                                    <button className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs">
-                                        <MessageSquare className="w-4 h-4" />
-                                        Chat
-                                    </button>
-                                </div>
-
-                                {canCancel && (
-                                    <button 
-                                        onClick={() => setShowCancelModal(true)}
-                                        className="w-full mt-4 py-3 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-all text-sm"
-                                    >
-                                        Cancel Booking
-                                    </button>
-                                )}
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Refund Policy footer info */}
-            <div className="container-safe mx-auto max-w-4xl px-4 mt-8">
-                <div className="p-6 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-900/20 flex gap-4">
-                    <Zap className="w-8 h-8 text-blue-500 flex-shrink-0" />
-                    <div>
-                        <h4 className="text-sm font-black text-gray-900 dark:text-white mb-1 uppercase tracking-wider">Halal-Friendly Guarantee</h4>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed font-medium">
-                            This tour is verified as halal-friendly. Prayer breaks are accommodated, and all food stops are certified halal. 
-                            Our guides are trained to respect and support your religious requirements throughout the journey.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <CancellationModal 
-                booking={booking} 
-                isOpen={showCancelModal} 
-                onClose={() => setShowCancelModal(false)} 
-                onConfirm={handleCancel}
-                isLoading={isCancelling}
-            />
-        </div>
+      <div className="pt-24 min-h-[60vh] bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
     )
+  }
+
+  if (!booking) return null
+
+  const displayStatus = getDisplayStatus(booking)
+  const statusStyle = getStatusStyle(displayStatus)
+  const startDate = new Date(booking.startTimeUtc)
+  const formattedDate = startDate.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  })
+  const formattedTime = startDate.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit'
+  })
+  const bookedDate = new Date(booking.createdAtUtc).toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric'
+  })
+
+  const canCancel = (
+    booking.status === BookingStatus.Confirmed ||
+    booking.status === BookingStatus.PendingGuide
+  ) && startDate.getTime() > Date.now()
+
+  const { refundPercent: previewRefund, hoursUntilStart } = canCancel
+    ? computeRefundPreview(booking.startTimeUtc)
+    : { refundPercent: 0, hoursUntilStart: 0 }
+
+  return (
+    <div className="bg-gray-50 dark:bg-gray-950 p-4 sm:p-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Back Button */}
+        <Link
+          href="/dashboard/traveler/bookings"
+          className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 transition-colors mb-6 group"
+        >
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Back to My Bookings</span>
+        </Link>
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+              Booking Details
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Booking Reference:{' '}
+              <button
+                onClick={() => {
+                  const tip = `SH-${booking.id.toString().padStart(4, '0')}`;
+                  navigator.clipboard.writeText(tip);
+                  toast.success(`Reference ${tip} copied!`);
+                }}
+                className="font-mono font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                title="Click to copy reference"
+              >
+                SH-{booking.id.toString().padStart(4, '0')}
+              </button>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1.5 rounded-full text-xs font-bold border border-current ${statusStyle}`}>
+              {displayStatus}
+            </span>
+            <button
+              onClick={handleDownloadInvoice}
+              className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-white transition-colors"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left Column: Details */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* Tour Info Section */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-200 dark:border-gray-800 shadow-xl relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
+               <div className="flex flex-col md:flex-row gap-6">
+                 <div className="w-full md:w-32 h-32 bg-gray-100 dark:bg-gray-800 rounded-2xl overflow-hidden flex-shrink-0">
+                   {booking.tourCoverImageUrl ? (
+                     <img src={booking.tourCoverImageUrl} alt={booking.tourTitle} className="w-full h-full object-cover" />
+                   ) : (
+                     <div className="w-full h-full flex items-center justify-center">
+                       <MapPin className="w-8 h-8 text-gray-300" />
+                     </div>
+                   )}
+                 </div>
+                 <div className="flex-1 space-y-4">
+                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{booking.tourTitle}</h2>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                       <Calendar className="w-4 h-4 text-blue-500" />
+                       <span className="font-medium">{formattedDate}</span>
+                     </div>
+                     <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                       <Clock className="w-4 h-4 text-blue-500" />
+                       <span className="font-medium">{formattedTime}</span>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+            </div>
+
+            {/* Meeting Point */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-200 dark:border-gray-800 shadow-xl space-y-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-red-500" />
+                Meeting Point
+              </h3>
+              <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
+                <p className="font-bold text-gray-900 dark:text-white mb-2">{booking.meetingPointName || 'TBD'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Please arrive 15 minutes early and show your QR code to the guide.
+                </p>
+              </div>
+            </div>
+
+            {/* Cancellation info banner */}
+            {booking.cancellationReason && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-2xl p-6">
+                <div className="flex items-start gap-4">
+                  <XCircle className="w-6 h-6 text-red-600 mt-1" />
+                  <div>
+                    <h4 className="font-bold text-red-900 dark:text-red-400">
+                      {displayStatus === 'Rejected' ? 'Rejected by Guide' : 'Cancelled'}
+                    </h4>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">{booking.cancellationReason}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Summary & QR */}
+          <div className="space-y-8">
+            
+            {/* QR Code Section */}
+            {booking.qrCode && booking.status === BookingStatus.Confirmed && (
+              <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-xl text-center space-y-4">
+                <h3 className="font-bold text-gray-900 dark:text-white uppercase tracking-widest text-xs">Your Ticket</h3>
+                <div className="p-6 bg-white dark:bg-gray-800 rounded-3xl inline-block mx-auto border-4 border-gray-50 dark:border-gray-700 shadow-2xl">
+                  <QRCodeCanvas 
+                    value={booking.qrCode} 
+                    size={160}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-[10px] font-mono text-gray-400 break-all">{booking.qrCode}</p>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(booking.qrCode!);
+                      toast.success('Ticket token copied!');
+                    }}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-blue-500 transition-colors"
+                    title="Copy token for scanner"
+                  >
+                    <Smartphone className="w-3 h-3" />
+                  </button>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Scanning required for check-in</p>
+              </div>
+            )}
+
+            {/* Price Summary */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-xl space-y-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white text-center uppercase tracking-wider">Summary</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Travelers</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-sm font-medium">Total Paid</span>
+                  <span className="text-2xl font-black text-blue-600">{booking.currency} {booking.finalPrice.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3 pt-4">
+                  <button onClick={handleDownloadInvoice} className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all">
+                    <Download className="w-5 h-5" />
+                    Receipt
+                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs">
+                        <Phone className="w-4 h-4" />
+                        Call
+                    </button>
+                    <button className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs">
+                        <MessageSquare className="w-4 h-4" />
+                        Chat
+                    </button>
+                  </div>
+                  
+                  {canCancel && (
+                    <button 
+                      onClick={() => setShowCancelModal(true)}
+                      className="w-full mt-4 py-3 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-all text-sm"
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
+
+                  {booking.status !== BookingStatus.Completed && 
+                   booking.status !== BookingStatus.Cancelled && 
+                   booking.status !== BookingStatus.Expired && (
+                    <Link
+                      href={`/tours/${booking.tourId}`}
+                      className="w-full mt-2 py-3 bg-indigo-600 dark:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all text-sm shadow-lg shadow-indigo-500/20"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Edit Booking
+                    </Link>
+                  )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cancellation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-red-600 px-6 py-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Cancel Booking
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Cancel your booking for <span className="font-bold text-gray-900 dark:text-white">{booking.tourTitle}</span>?
+              </p>
+              <input
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none"
+              />
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-2 text-sm border border-gray-100 dark:border-gray-700">
+                 <div className="flex justify-between">
+                    <span className="text-gray-500">Refund Policy</span>
+                    <span className="font-bold text-amber-600">{previewRefund}% Refund</span>
+                 </div>
+                 <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700 font-bold">
+                    <span>You'll get</span>
+                    <span className="text-lg text-emerald-600">{booking.currency} {((booking.finalPrice * previewRefund) / 100).toFixed(2)}</span>
+                 </div>
+                 <p className="text-[10px] text-gray-400 italic mt-2">
+                   {hoursUntilStart > 0 ? formatHoursRemaining(hoursUntilStart) : 'Deadline passed'}
+                 </p>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-2xl hover:bg-gray-200 transition-all transition-all"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={handleCancelBooking}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

@@ -224,9 +224,11 @@ export interface TourDetail {
     // Schedule
     nextAvailableDate?: string
     upcomingDates?: Array<{
+        id: number
         date: string
         availableSpots: number
         price?: number
+        waitlistCount?: number
     }>
     isRecurring: boolean
     recurrencePattern?: RecurrencePattern
@@ -322,7 +324,10 @@ export interface TourInfoProps {
     languages?: string[]
     durationHours?: number
     durationMinutes?: number
+    occurrences?: any[]
 }
+
+import { PublicActiveBookingResponse, PublicActiveWaitlistResponse } from '@/src/lib/types/tour.types'
 
 export interface BookingCardProps {
     basePrice: number
@@ -337,10 +342,23 @@ export interface BookingCardProps {
     isWaitlistAvailable: boolean
     waitlistCount?: number
     cancellationPolicy: TourDetail['cancellationPolicy']
+    hasGroupDiscount?: boolean
+    groupDiscountThreshold?: number
+    groupDiscountPercent?: number
+    dynamicPricing?: {
+        enabled: boolean
+        weekendMultiplier?: number
+        holidayMultiplier?: number
+    }
     onBookNow: (date: string, people: number, waiverSigned: boolean) => void
     onRequestBooking: (date: string, people: number, waiverSigned: boolean, message?: string) => void
     onJoinWaitlist: (date: string, people: number) => void
+    onLeaveWaitlist?: (waitlistId: number) => Promise<void>
     isLoading?: boolean
+    activeBookings?: PublicActiveBookingResponse[]
+    activeWaitlistEntries?: PublicActiveWaitlistResponse[]
+    onUpdateBooking?: (bookingId: number, occurrenceId: number, peopleCount: number, confirmWaitlist?: boolean) => Promise<void>
+    onCancelBooking?: (bookingId: number) => Promise<void>
 }
 
 export interface GuideProfileCardProps {
@@ -360,6 +378,7 @@ export interface SimilarToursProps {
     currentTourId: string
     city: City
     country: Country
+    category?: string
     limit?: number
 }
 
@@ -482,11 +501,11 @@ export const MOCK_TOUR_DETAIL: TourDetail = {
 
     nextAvailableDate: 'Tomorrow',
     upcomingDates: [
-        { date: '2026-02-13T09:00:00Z', availableSpots: 5 },
-        { date: '2026-02-14T09:00:00Z', availableSpots: 3 },
-        { date: '2026-02-15T09:00:00Z', availableSpots: 6 },
-        { date: '2026-02-16T09:00:00Z', availableSpots: 4 },
-        { date: '2026-02-17T09:00:00Z', availableSpots: 7 }
+        { id: 101, date: '2026-02-13T09:00:00Z', availableSpots: 5 },
+        { id: 102, date: '2026-02-14T09:00:00Z', availableSpots: 3 },
+        { id: 103, date: '2026-02-15T09:00:00Z', availableSpots: 6 },
+        { id: 104, date: '2026-02-16T09:00:00Z', availableSpots: 4 },
+        { id: 105, date: '2026-02-17T09:00:00Z', availableSpots: 7 }
     ],
     isRecurring: true,
     recurrencePattern: RecurrencePattern.DAILY,

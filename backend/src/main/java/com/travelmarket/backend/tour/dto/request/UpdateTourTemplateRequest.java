@@ -83,7 +83,8 @@ public class UpdateTourTemplateRequest {
     
     private java.time.Instant startDate;
 
-    private Boolean isRecurring;
+    @com.fasterxml.jackson.annotation.JsonProperty("isRecurring")
+    private Boolean recurring;
 
     private RecurrencePattern recurrencePattern;
     private String recurringDays;
@@ -100,8 +101,11 @@ public class UpdateTourTemplateRequest {
     private String dynamicPricing;
     private String halalDetails;
 
-    private Boolean isPremium;
-    private Boolean isFamilyFriendly;
+    @com.fasterxml.jackson.annotation.JsonProperty("isPremium")
+    private Boolean premium;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isFamilyFriendly")
+    private Boolean familyFriendly;
     private Boolean hasGroupDiscount;
     private Integer groupDiscountThreshold;
     private java.math.BigDecimal groupDiscountPercent;

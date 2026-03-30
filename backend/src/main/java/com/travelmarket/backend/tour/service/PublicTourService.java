@@ -13,6 +13,9 @@ import com.travelmarket.backend.tour.mapper.TourMapper;
 import com.travelmarket.backend.tour.repository.TourMediaRepository;
 import com.travelmarket.backend.tour.repository.TourOccurrenceRepository;
 import com.travelmarket.backend.tour.repository.TourTemplateRepository;
+import com.travelmarket.backend.booking.repository.BookingRepository;
+import com.travelmarket.backend.booking.repository.WaitlistRepository;
+import com.travelmarket.backend.booking.enums.BookingStatus;
 import com.travelmarket.backend.entity.GuideLanguage;
 import com.travelmarket.backend.repository.GuideLanguageRepository;
 import com.travelmarket.backend.dto.PublicGuideProfileResponse;
@@ -39,6 +42,8 @@ public class PublicTourService {
     private final GuideProfileRepository guideProfileRepository;
     private final UserRepository userRepository;
     private final GuideLanguageRepository guideLanguageRepository;
+    private final BookingRepository bookingRepository;
+    private final WaitlistRepository waitlistRepository;
     private final TourMapper tourMapper;
     private final ObjectMapper objectMapper;
 
@@ -136,14 +141,19 @@ public class PublicTourService {
         List<PublicTourCardResponse> results = new ArrayList<>();
 
         for (TourTemplate t : templates) {
+            List<TourOccurrence> upcoming = occurrenceRepository
+                    .findPublicFutureByTemplateId(t.getId(), now);
+            
+            // If a tour has no future occurrences (Scheduled or Full), skip it.
+            // This ensures travelers only see tours they can actually book or waitlist for.
+            if (upcoming.isEmpty()) {
+                continue;
+            }
+
             GuideProfile guide = t.getGuide();
             User guideUser = userRepository.findById(guide.getUser().getId()).orElse(null);
-
             List<TourMedia> media = tourMediaRepository.findCoverByTemplateId(t.getId());
-
-            List<TourOccurrence> upcoming = occurrenceRepository
-                    .findNextScheduledByTemplateId(t.getId(), now);
-            TourOccurrence next = upcoming.isEmpty() ? null : upcoming.get(0);
+            TourOccurrence next = upcoming.get(0);
 
             results.add(tourMapper.toPublicCardResponse(t, guide, guideUser, media, next));
         }
@@ -152,11 +162,17 @@ public class PublicTourService {
     }
 
     // ── Public: Tour detail ─────────────────────────────────────────────────────
-
-    public PublicTourDetailResponse getTourDetail(Long id) {
-        TourTemplate t = tourTemplateRepository.findByIdAndStatus(id, TourTemplateStatus.PUBLISHED)
+    @Transactional(readOnly = true)
+    public PublicTourDetailResponse getTourDetail(Long id, String email) {
+        TourTemplate t = tourTemplateRepository.findByIdNotDeleted(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Tour not found"));
+
+        // Must be PUBLISHED or PENDING_REVIEW with a previous publication
+        if (t.getStatus() != TourTemplateStatus.PUBLISHED && 
+            !(t.getStatus() == TourTemplateStatus.PENDING_REVIEW && t.getLastPublishedAtUtc() != null)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tour not found");
+        }
 
         GuideProfile guide = t.getGuide();
         User guideUser = userRepository.findById(guide.getUser().getId())
@@ -167,7 +183,44 @@ public class PublicTourService {
         List<TourOccurrence> occurrences = occurrenceRepository
                 .findPublicFutureByTemplateId(t.getId(), Instant.now());
 
-        return tourMapper.toPublicDetailResponse(t, guide, guideUser, media, occurrences);
+        PublicTourDetailResponse response = tourMapper.toPublicDetailResponse(t, guide, guideUser, media, occurrences);
+        
+        // If authenticated, check for active bookings
+        if (email != null) {
+            var activeBookings = bookingRepository.findActiveByTravelerAndTemplate(
+                    email, id, List.of(com.travelmarket.backend.booking.enums.BookingStatus.Cancelled, com.travelmarket.backend.booking.enums.BookingStatus.Expired));
+            
+            if (!activeBookings.isEmpty()) {
+                List<PublicActiveBookingResponse> bookingSummaries = activeBookings.stream()
+                        .map(b -> PublicActiveBookingResponse.builder()
+                                .id(b.getId())
+                                .status(b.getStatus().name())
+                                .occurrenceId(b.getOccurrence().getId())
+                                .peopleCount(b.getPeopleCount())
+                                .finalPrice(b.getFinalPrice())
+                                .currency(b.getCurrency())
+                                .startTime(b.getOccurrence().getStartTimeUtc())
+                                .build())
+                        .collect(java.util.stream.Collectors.toList());
+                response.setActiveBookings(bookingSummaries);
+            }
+
+            var waitlistEntries = waitlistRepository.findActiveByTravelerAndTemplate(email, id);
+            if (!waitlistEntries.isEmpty()) {
+                List<PublicActiveWaitlistResponse> waitlistSummaries = waitlistEntries.stream()
+                        .map(w -> PublicActiveWaitlistResponse.builder()
+                                .id(w.getId())
+                                .occurrenceId(w.getOccurrence().getId())
+                                .peopleCount(w.getPeopleCount())
+                                .position(w.getPosition())
+                                .createdAt(w.getCreatedAtUtc())
+                                .build())
+                        .collect(java.util.stream.Collectors.toList());
+                response.setActiveWaitlistEntries(waitlistSummaries);
+            }
+        }
+
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -191,7 +244,7 @@ public class PublicTourService {
     }
 
     // ── Public: Occurrences for a tour ──────────────────────────────────────────
-
+    @Transactional(readOnly = true)
     public List<TourOccurrenceResponse> getPublicOccurrences(Long templateId) {
         TourTemplate t = tourTemplateRepository.findByIdNotDeleted(templateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -210,7 +263,7 @@ public class PublicTourService {
     }
 
     // ── Public: Guide portfolio list ────────────────────────────────────────────
-
+    @Transactional(readOnly = true)
     public List<GuidePortfolioTourResponse> getGuidePortfolio(Long guideId) {
         GuideProfile guide = findGuideProfileChecked(guideId);
 
@@ -235,7 +288,7 @@ public class PublicTourService {
     }
 
     // ── Public: Guide portfolio tour detail ─────────────────────────────────────
-
+    @Transactional(readOnly = true)
     public GuidePortfolioTourDetailResponse getPortfolioTourDetail(Long guideId, Long tourId) {
         GuideProfile guide = findGuideProfileChecked(guideId);
 
@@ -261,11 +314,13 @@ public class PublicTourService {
      * Public profile lookup for the guide portfolio page.
      * Excludes sensitive fields (internal documents, payout accounts).
      */
+    @Transactional(readOnly = true)
     public PublicGuideProfileResponse getPublicGuideProfile(Long guideId) {
         GuideProfile gp = findGuideProfileChecked(guideId);
         return mapToPublicGuideProfile(gp);
     }
 
+    @Transactional(readOnly = true)
     public List<PublicGuideProfileResponse> searchGuides(String query) {
         if (query == null || query.isBlank()) return new ArrayList<>();
 

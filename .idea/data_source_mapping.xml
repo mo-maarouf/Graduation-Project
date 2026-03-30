@@ -33,6 +33,8 @@
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V38__booking_lifecycle_additions.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V39__enhance_waitlist_and_snapshots.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V3__agreements_and_profile_completion.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
+    <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V40__add_tour_media_caption.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
+    <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V41__add_tour_enhancement_fields.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V4__user_account_status.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V5__profile_fields.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/db/migration/V6__guide_verification_front_back.sql" value="911b9fe5-23f4-4995-aaf5-1dca7040d142" />

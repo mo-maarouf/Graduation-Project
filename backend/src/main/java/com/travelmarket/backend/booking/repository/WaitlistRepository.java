@@ -76,4 +76,14 @@ public interface WaitlistRepository extends JpaRepository<WaitlistEntry, Long> {
      */
     Optional<WaitlistEntry> findByIdAndTravelerAndDeletedAtUtcIsNull(
             Long id, TravelerProfile traveler);
+    @Query("""
+            SELECT w FROM WaitlistEntry w
+            WHERE w.traveler.user.email = :email
+              AND w.occurrence.template.id = :templateId
+              AND w.deletedAtUtc IS NULL
+              AND w.promoted = false
+            """)
+    List<WaitlistEntry> findActiveByTravelerAndTemplate(
+            @Param("email") String email, 
+            @Param("templateId") Long templateId);
 }

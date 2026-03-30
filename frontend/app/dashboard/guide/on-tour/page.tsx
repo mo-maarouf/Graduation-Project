@@ -1,34 +1,24 @@
 // ============================================================================
-// GUIDE ON-TOUR TOOLKIT - CARD 18
+// GUIDE ON-TOUR TOOLKIT — WIRED TO REAL BACKEND
 // ============================================================================
-// LOCATION: /frontend/src/app/dashboard/guide/on-tour/page.tsx
-// 
-// PURPOSE: Tools for guides during active tours
-// 
-// BUSINESS REQUIREMENTS (from project spec):
-// ✓ QR handshake - Guide scans traveler QR at meeting point
-// ✓ Marks booking as COMPLETED
-// ✓ Starts 48h payout countdown
-// ✓ Traveler list with check-in status
-// ✓ Waitlist manager
-// ✓ Safety status tracking
-// 
-// COLOR PSYCHOLOGY:
-// - Blue: Primary actions, scanner
-// - Green: Checked-in, completed
-// - Orange: Pending, waiting
-// - Red: Issues, no-show
-// - Purple: Waitlist
-// 
-// DUAL THEME: Full light/dark mode support
+// LOCATION: /frontend/app/dashboard/guide/on-tour/page.tsx
+//
+// PURPOSE: Tools for guides during active tours — check-in, QR scanner,
+//          tour completion. All data comes from the booking API.
+//
+// KEY CONSTRAINTS:
+// - Guides have NO access to /api/traveler/waitlist — waitlist is read as a
+//   count only (the backend auto-promotes when a spot opens).
+// - No-show reporting is a future card — button is disabled with tooltip.
+// - QR scanner sends the raw UUID token to checkInByQrToken().
 // ============================================================================
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import {
     QrCode,
     Camera,
@@ -37,257 +27,77 @@ import {
     Clock,
     CheckCircle,
     XCircle,
-    AlertCircle,
-    UserCheck,
-    UserX,
     UserPlus,
     Calendar,
     MapPin,
     Phone,
     Mail,
     MessageSquare,
-    ChevronRight,
-    ChevronLeft,
     ChevronDown,
     Check,
-    Globe,
     RefreshCw,
-    Scan,
     Smartphone,
     Timer,
-    Award,
     TrendingUp,
-    Shield,
-    Bell,
-    MoreVertical,
-    Download,
-    Printer,
-    HelpCircle,
-    Info
+    Loader2,
+    Info,
+    Sparkles,
+    ExternalLink
 } from 'lucide-react'
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition } from '@headlessui/react'
 
+// API functions — all booking mutations go through this layer
+import {
+    getGuideBookings,
+    confirmBooking,
+    rejectBooking,
+    noShowBooking,
+    checkInByQrToken,
+    completeBooking,
+} from '@/src/lib/api/tours'
+import { BookingStatus, GuideBookingResponse } from '@/src/lib/types/tour.types'
+
 // ============================================================================
-// TYPE DEFINITIONS
+// TYPE: Occurrence group — bookings grouped by occurrence for the selector
 // ============================================================================
 
-type CheckInStatus = 'pending' | 'checked-in' | 'no-show' | 'cancelled'
-type TourStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
-
-interface Traveler {
-    id: string
-    bookingId: string
-    name: string
-    avatar?: string
-    email: string
-    phone: string
-    peopleCount: number
-    checkInStatus: CheckInStatus
-    checkInTime?: string
-    specialRequests?: string
-    emergencyContact?: {
-        name: string
-        phone: string
-        relationship: string
-    }
-    qrCode: string
-}
-
-interface WaitlistEntry {
-    id: string
-    travelerId: string
-    travelerName: string
-    travelerAvatar?: string
-    peopleCount: number
-    requestedAt: string
-    notified: boolean
-    position: number
-}
-
-interface ActiveTour {
-    id: string
-    tourId: string
-    title: string
-    mainImage: string
-    date: string
-    startTime: string
-    endTime: string
-    location: string
-    meetingPoint: {
-        name: string
-        address: string
-        instructions?: string
-    }
-    guideName: string
-    guideId: string
-    status: TourStatus
-    travelers: Traveler[]
-    waitlist: WaitlistEntry[]
-    totalCapacity: number
-    confirmedCount: number
-    checkedInCount: number
-    noShowCount: number
-    pendingCount: number
-    weatherInfo?: {
-        condition: string
-        temperature: number
-        icon: string
-    }
+interface OccurrenceGroup {
+    occurrenceId: number
+    tourId: number
+    tourTitle: string
+    startTimeUtc: string
+    endTimeUtc: string
+    bookings: GuideBookingResponse[]
 }
 
 // ============================================================================
-// MOCK DATA
+// HELPER: Map backend BookingStatus to check-in display status
 // ============================================================================
+// The backend has no "no-show" status yet (future card), so we only show
+// the statuses the backend actually returns for this context.
 
-const MOCK_ACTIVE_TOURS: ActiveTour[] = [
-    {
-        id: 'tour-1',
-        tourId: '1',
-        title: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-        mainImage: '/images/tours/istanbul-ottoman.jpg',
-        date: '2026-03-15',
-        startTime: '09:00',
-        endTime: '13:00',
-        location: 'Istanbul',
-        meetingPoint: {
-            name: 'Sultanahmet Square Fountain',
-            address: 'Sultanahmet Meydanı, Fatih/İstanbul',
-            instructions: 'Look for the orange umbrella'
-        },
-        guideName: 'Mehmet Yilmaz',
-        guideId: 'guide-123',
-        status: 'scheduled',
-        travelers: [
-            {
-                id: 't1',
-                bookingId: 'b1',
-                name: 'Ahmed Khan',
-                avatar: '/images/travelers/ahmed.jpg',
-                email: 'ahmed.khan@example.com',
-                phone: '+90 555 111 2233',
-                peopleCount: 2,
-                checkInStatus: 'pending',
-                specialRequests: 'Vegetarian food',
-                emergencyContact: {
-                    name: 'Fatima Khan',
-                    phone: '+90 555 111 2244',
-                    relationship: 'Spouse'
-                },
-                qrCode: 'QR-AHMED-123'
-            },
-            {
-                id: 't2',
-                bookingId: 'b2',
-                name: 'Omar Farooq',
-                email: 'omar.f@example.com',
-                phone: '+90 555 222 3344',
-                peopleCount: 1,
-                checkInStatus: 'checked-in',
-                checkInTime: '08:45',
-                qrCode: 'QR-OMAR-456'
-            },
-            {
-                id: 't3',
-                bookingId: 'b3',
-                name: 'Layla Hassan',
-                avatar: '/images/travelers/layla.jpg',
-                email: 'layla.h@example.com',
-                phone: '+90 555 333 4455',
-                peopleCount: 3,
-                checkInStatus: 'no-show',
-                emergencyContact: {
-                    name: 'Hassan Ali',
-                    phone: '+90 555 333 4466',
-                    relationship: 'Brother'
-                },
-                qrCode: 'QR-LAYLA-789'
-            },
-            {
-                id: 't4',
-                bookingId: 'b4',
-                name: 'Zeynep Kaya',
-                email: 'zeynep.k@example.com',
-                phone: '+90 555 444 5566',
-                peopleCount: 2,
-                checkInStatus: 'pending',
-                qrCode: 'QR-ZEYNEP-012'
-            }
-        ],
-        waitlist: [
-            {
-                id: 'w1',
-                travelerId: 'wt1',
-                travelerName: 'Mehmet Demir',
-                peopleCount: 2,
-                requestedAt: '2026-03-14T10:30:00Z',
-                notified: false,
-                position: 1
-            },
-            {
-                id: 'w2',
-                travelerId: 'wt2',
-                travelerName: 'Fatima Yilmaz',
-                peopleCount: 1,
-                requestedAt: '2026-03-14T14:15:00Z',
-                notified: false,
-                position: 2
-            }
-        ],
-        totalCapacity: 8,
-        confirmedCount: 4,
-        checkedInCount: 1,
-        noShowCount: 1,
-        pendingCount: 2,
-        weatherInfo: {
-            condition: 'Sunny',
-            temperature: 18,
-            icon: '☀️'
-        }
-    },
-    {
-        id: 'tour-2',
-        tourId: '2',
-        title: 'Beirut Street Food & Cultural Walk',
-        mainImage: '/images/tours/beirut-food.jpg',
-        date: '2026-03-16',
-        startTime: '11:00',
-        endTime: '14:00',
-        location: 'Beirut',
-        meetingPoint: {
-            name: 'Beirut Souks Entrance',
-            address: 'Beirut Souks, Downtown Beirut',
-            instructions: 'Meet near the clock tower'
-        },
-        guideName: 'Layla Hassan',
-        guideId: 'guide-456',
-        status: 'scheduled',
-        travelers: [
-            {
-                id: 't5',
-                bookingId: 'b5',
-                name: 'Hassan Ali',
-                email: 'hassan.a@example.com',
-                phone: '+961 70 123 456',
-                peopleCount: 4,
-                checkInStatus: 'pending',
-                qrCode: 'QR-HASSAN-345'
-            }
-        ],
-        waitlist: [],
-        totalCapacity: 6,
-        confirmedCount: 4,
-        checkedInCount: 0,
-        noShowCount: 0,
-        pendingCount: 1
+type CheckInDisplay = 'pending' | 'confirmed' | 'checked-in' | 'cancelled'
+
+function mapToCheckInDisplay(status: BookingStatus | string): CheckInDisplay {
+    switch (status) {
+        case BookingStatus.InProgress:
+        case BookingStatus.Completed:
+            return 'checked-in'
+        case BookingStatus.Cancelled:
+            return 'cancelled'
+        case BookingStatus.Confirmed:
+            return 'confirmed'
+        default:
+            return 'pending' // PendingGuide, PendingPayment all show as "pending"
     }
-]
+}
 
 // ============================================================================
 // STATUS BADGE COMPONENT
 // ============================================================================
 
 interface StatusBadgeProps {
-    status: CheckInStatus
+    status: CheckInDisplay
 }
 
 function StatusBadge({ status }: StatusBadgeProps) {
@@ -297,7 +107,14 @@ function StatusBadge({ status }: StatusBadgeProps) {
             text: 'text-amber-700 dark:text-amber-300',
             border: 'border-amber-200 dark:border-amber-800',
             icon: Clock,
-            label: 'Pending'
+            label: 'Awaiting'
+        },
+        confirmed: {
+            bg: 'bg-blue-100 dark:bg-blue-950/30',
+            text: 'text-blue-700 dark:text-blue-300',
+            border: 'border-blue-200 dark:border-blue-800',
+            icon: Check,
+            label: 'Confirmed'
         },
         'checked-in': {
             bg: 'bg-emerald-100 dark:bg-emerald-950/30',
@@ -305,13 +122,6 @@ function StatusBadge({ status }: StatusBadgeProps) {
             border: 'border-emerald-200 dark:border-emerald-800',
             icon: CheckCircle,
             label: 'Checked In'
-        },
-        'no-show': {
-            bg: 'bg-red-100 dark:bg-red-950/30',
-            text: 'text-red-700 dark:text-red-300',
-            border: 'border-red-200 dark:border-red-800',
-            icon: XCircle,
-            label: 'No Show'
         },
         cancelled: {
             bg: 'bg-gray-100 dark:bg-gray-800',
@@ -345,6 +155,22 @@ function StatusBadge({ status }: StatusBadgeProps) {
 // TOUR STATUS BADGE
 // ============================================================================
 
+// Determines the overall "tour status" from its bookings:
+// - If any booking is InProgress → "in-progress"
+// - If all bookings are Completed → "completed"
+// - Otherwise → "scheduled" (waiting for check-ins to begin)
+type TourStatus = 'scheduled' | 'in-progress' | 'completed'
+
+function deriveTourStatus(bookings: GuideBookingResponse[]): TourStatus {
+    const hasInProgress = bookings.some(b => b.status === BookingStatus.InProgress)
+    const allCompleted = bookings.length > 0 && bookings.every(
+        b => b.status === BookingStatus.Completed || b.status === BookingStatus.Cancelled
+    )
+    if (allCompleted) return 'completed'
+    if (hasInProgress) return 'in-progress'
+    return 'scheduled'
+}
+
 interface TourStatusBadgeProps {
     status: TourStatus
 }
@@ -371,13 +197,6 @@ function TourStatusBadge({ status }: TourStatusBadgeProps) {
             border: 'border-purple-200 dark:border-purple-800',
             icon: CheckCircle,
             label: 'Completed'
-        },
-        cancelled: {
-            bg: 'bg-gray-100 dark:bg-gray-800',
-            text: 'text-gray-700 dark:text-gray-300',
-            border: 'border-gray-200 dark:border-gray-700',
-            icon: XCircle,
-            label: 'Cancelled'
         }
     }
 
@@ -413,112 +232,188 @@ interface QRScannerModalProps {
 function QRScannerModal({ isOpen, onClose, onScan }: QRScannerModalProps) {
     const [scanning, setScanning] = useState(false)
     const [scannedData, setScannedData] = useState('')
+    // Manual input fallback — guide can type the UUID if camera fails
+    const [manualInput, setManualInput] = useState('')
 
     if (!isOpen) return null
 
+    // Simulate a QR scan. In production, this would use a real scanner library.
+    // For this project, we provide a "Scan from Clipboard" button to make 
+    // it easy to test with the traveler's token.
     const handleSimulateScan = () => {
         setScanning(true)
-        // Simulate scanning
         setTimeout(() => {
-            const mockQR = 'QR-AHMED-123'
-            setScannedData(mockQR)
+            if (manualInput.trim()) {
+                setScannedData(manualInput.trim())
+            }
             setScanning(false)
-        }, 2000)
+        }, 1200)
+    }
+
+    const handlePasteFromClipboard = async () => {
+        try {
+            const text = await navigator.clipboard.readText()
+            if (text.length > 10) { // Basic UUID check length
+                setManualInput(text)
+                toast.success('Token pasted from clipboard!')
+            } else {
+                toast.error('Clipboard does not contain a valid token')
+            }
+        } catch (err) {
+            toast.error('Could not access clipboard')
+        }
     }
 
     const handleConfirm = () => {
-        if (scannedData) {
-            onScan(scannedData)
+        const token = scannedData || manualInput.trim()
+        if (token) {
+            onScan(token)
+            setScannedData('')
+            setManualInput('')
             onClose()
         }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 shadow-2xl backdrop-blur-sm">
             <div className="
         w-full max-w-md
         bg-white dark:bg-gray-900
-        rounded-2xl
+        rounded-3xl
         shadow-2xl
         overflow-hidden
+        border border-gray-200 dark:border-gray-800
       ">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                <div className="p-6 bg-blue-600">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <QrCode className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                                Scan QR Code
+                        <div className="flex items-center gap-3">
+                            <QrCode className="w-6 h-6 text-white" />
+                            <h3 className="text-xl font-bold text-white">
+                                Ticket Scanner
                             </h3>
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                            className="p-1 hover:bg-white/10 rounded-lg text-white transition-colors"
                         >
-                            <XCircle className="w-5 h-5 text-gray-500" />
+                            <XCircle className="w-6 h-6" />
                         </button>
                     </div>
                 </div>
 
-                {/* Scanner Preview */}
-                <div className="p-6">
+                {/* Scanner Content */}
+                <div className="p-8">
+                    {/* Scanner Rect */}
                     <div className="
             aspect-square
             bg-gray-900 dark:bg-gray-950
-            rounded-xl
+            rounded-3xl
             flex items-center justify-center
             relative
             overflow-hidden
+            border-2 border-gray-100 dark:border-gray-800
           ">
                         {scanning ? (
                             <div className="text-center">
-                                <div className="
-                  w-16 h-16
-                  border-4 border-blue-600 border-t-transparent
-                  rounded-full
-                  animate-spin
-                  mx-auto mb-4
-                " />
-                                <p className="text-white">Scanning...</p>
+                                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                                <p className="text-white font-medium">Analyzing...</p>
                             </div>
                         ) : scannedData ? (
-                            <div className="text-center text-white">
-                                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
-                                <p className="font-medium">QR Code Scanned!</p>
-                                <p className="text-sm text-gray-400 mt-1">{scannedData}</p>
+                            <div className="text-center text-white px-6">
+                                <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Check className="w-10 h-10 text-white" />
+                                </div>
+                                <p className="text-lg font-bold">Successfully Scanned!</p>
+                                <p className="text-xs text-emerald-400 mt-2 break-all opacity-80">{scannedData}</p>
                             </div>
                         ) : (
-                            <div className="text-center text-white">
-                                <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                <p className="text-sm text-gray-400">Ready to scan</p>
+                            <div className="text-center text-white p-8">
+                                <Camera className="w-16 h-16 mx-auto mb-4 text-gray-700" />
+                                <p className="text-sm text-gray-400">Scan traveler&apos;s digital ticket</p>
+                                {/* Overlay scan lines */}
+                                <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-blue-500/30 blur-[1px] animate-[pulse_1s_infinite]" />
                             </div>
                         )}
 
-                        {/* Scanning overlay */}
+                        {/* Animated Scanning Frame */}
                         {scanning && (
-                            <div className="absolute inset-0 border-2 border-blue-500 rounded-xl animate-pulse" />
+                            <div className="absolute inset-10 border-2 border-blue-500 rounded-xl">
+                                <div className="absolute top-0 left-0 w-full h-0.5 bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.8)] animate-[scan_2s_linear_infinite]" />
+                                <style jsx>{`
+                                    @keyframes scan {
+                                        0% { top: 0%; }
+                                        50% { top: 100%; }
+                                        100% { top: 0%; }
+                                    }
+                                `}</style>
+                            </div>
                         )}
                     </div>
 
-                    {/* Simulate scan button (Phase 1) */}
-                    <button
-                        onClick={handleSimulateScan}
-                        disabled={scanning}
-                        className="
-              w-full
-              mt-4
-              px-4 py-3
-              bg-blue-600 hover:bg-blue-700
-              text-white font-medium
-              rounded-lg
-              transition-colors
-              disabled:opacity-50
-              flex items-center justify-center gap-2
-            "
-                    >
-                        <Smartphone className="w-4 h-4" />
-                        Simulate Scan
-                    </button>
+                    <div className="mt-8 space-y-4">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={manualInput}
+                                onChange={(e) => setManualInput(e.target.value)}
+                                placeholder="Paste or type Token UUID..."
+                                className="
+                  w-full px-4 py-4
+                  bg-gray-50 dark:bg-gray-800
+                  border border-gray-200 dark:border-gray-700
+                  rounded-2xl text-sm
+                  text-gray-900 dark:text-white
+                  placeholder-gray-400
+                  focus:outline-none focus:ring-4 focus:ring-blue-500/10
+                "
+                            />
+                            <button
+                                onClick={handlePasteFromClipboard}
+                                title="Paste from clipboard"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-500 transition-colors"
+                            >
+                                <Smartphone className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={handleSimulateScan}
+                                disabled={scanning || scannedData !== ''}
+                                className="
+                  flex items-center justify-center gap-2
+                  px-4 py-4
+                  bg-blue-600 hover:bg-blue-700
+                  text-white font-bold
+                  rounded-2xl
+                  transition-all
+                  disabled:opacity-50
+                  shadow-lg shadow-blue-500/20
+                "
+                            >
+                                <Camera className="w-5 h-5" />
+                                {manualInput ? 'Apply' : 'Scan'}
+                            </button>
+
+                            <button
+                                onClick={handleConfirm}
+                                disabled={!scannedData && !manualInput.trim()}
+                                className="
+                  flex-1
+                  px-4 py-4
+                  bg-emerald-600 hover:bg-emerald-700
+                  text-white font-bold
+                  rounded-2xl
+                  transition-all
+                  disabled:opacity-50
+                  shadow-lg shadow-emerald-500/20
+                "
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
 
                     {scannedData && (
                         <div className="mt-4 flex gap-2">
@@ -569,14 +464,16 @@ function QRScannerModal({ isOpen, onClose, onScan }: QRScannerModalProps) {
 // ============================================================================
 
 interface TravelerCardProps {
-    traveler: Traveler
-    onCheckIn: (travelerId: string) => void
-    onMarkNoShow: (travelerId: string) => void
-    onContact: (traveler: Traveler) => void
+    booking: GuideBookingResponse
+    onNoShow: (bookingId: number) => void
+    onContact: (booking: GuideBookingResponse) => void
+    now: Date
 }
 
-function TravelerCard({ traveler, onCheckIn, onMarkNoShow, onContact }: TravelerCardProps) {
+// Renders one traveler's booking as a card with check-in actions.
+function TravelerCard({ booking, onNoShow, onContact, now }: TravelerCardProps) {
     const [expanded, setExpanded] = useState(false)
+    const displayStatus = mapToCheckInDisplay(booking.status)
 
     return (
         <div className="
@@ -591,28 +488,18 @@ function TravelerCard({ traveler, onCheckIn, onMarkNoShow, onContact }: Traveler
             <div className="p-4">
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                        {/* Avatar */}
+                        {/* Avatar placeholder */}
                         <div className="relative">
                             <div className="
                 w-10 h-10
                 rounded-full
                 bg-gray-100 dark:bg-gray-800
                 overflow-hidden
+                flex items-center justify-center
               ">
-                                {traveler.avatar ? (
-                                    <Image
-                                        src={traveler.avatar}
-                                        alt={traveler.name}
-                                        fill
-                                        className="object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <User className="w-5 h-5 text-gray-400" />
-                                    </div>
-                                )}
+                                <User className="w-5 h-5 text-gray-400" />
                             </div>
-                            {traveler.checkInStatus === 'checked-in' && (
+                            {displayStatus === 'checked-in' && (
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-900" />
                             )}
                         </div>
@@ -620,58 +507,47 @@ function TravelerCard({ traveler, onCheckIn, onMarkNoShow, onContact }: Traveler
                         {/* Info */}
                         <div>
                             <h4 className="font-semibold text-gray-900 dark:text-white">
-                                {traveler.name}
+                                {booking.traveler?.fullName || 'Unknown Traveler'}
                             </h4>
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <Users className="w-3 h-3" />
-                                <span>{traveler.peopleCount} {traveler.peopleCount === 1 ? 'person' : 'people'}</span>
+                                <span>{booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}</span>
                                 <span>•</span>
-                                <span>Booking #{traveler.bookingId}</span>
+                                <span>Booking #{booking.id}</span>
                             </div>
                         </div>
                     </div>
 
-                    <StatusBadge status={traveler.checkInStatus} />
+                    <StatusBadge status={displayStatus} />
                 </div>
 
                 {/* Quick actions */}
                 <div className="flex items-center gap-2 mt-3">
-                    {traveler.checkInStatus === 'pending' && (
-                        <>
-                            <button
-                                onClick={() => onCheckIn(traveler.id)}
-                                className="
+                    {/* No-show button — enabled after tour starts */}
+                    {booking.status === BookingStatus.Confirmed && (
+                        <button
+                            onClick={() => onNoShow(booking.id)}
+                            disabled={new Date(now) < new Date(booking.startTimeUtc)}
+                            title={new Date(now) < new Date(booking.startTimeUtc) ? "Only available after tour starts" : "Mark as No-Show"}
+                            className={`
                   flex-1
                   px-3 py-1.5
-                  bg-emerald-600 hover:bg-emerald-700
-                  text-white text-sm
+                  text-sm
                   rounded-lg
                   transition-colors
                   flex items-center justify-center gap-1
-                "
-                            >
-                                <CheckCircle className="w-4 h-4" />
-                                Check In
-                            </button>
-                            <button
-                                onClick={() => onMarkNoShow(traveler.id)}
-                                className="
-                  flex-1
-                  px-3 py-1.5
-                  bg-red-600 hover:bg-red-700
-                  text-white text-sm
-                  rounded-lg
-                  transition-colors
-                  flex items-center justify-center gap-1
-                "
-                            >
-                                <XCircle className="w-4 h-4" />
-                                No Show
-                            </button>
-                        </>
+                  ${new Date(now) < new Date(booking.startTimeUtc)
+                                    ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                }
+                `}
+                        >
+                            <XCircle className="w-4 h-4" />
+                            No Show
+                        </button>
                     )}
                     <button
-                        onClick={() => onContact(traveler)}
+                        onClick={() => onContact(booking)}
                         className="
               px-3 py-1.5
               bg-blue-600 hover:bg-blue-700
@@ -684,6 +560,7 @@ function TravelerCard({ traveler, onCheckIn, onMarkNoShow, onContact }: Traveler
                         <MessageSquare className="w-4 h-4" />
                         Contact
                     </button>
+                    {/* Manual check-in button REMOVED — QR code is mandatory */}
                     <button
                         onClick={() => setExpanded(!expanded)}
                         className="
@@ -699,144 +576,54 @@ function TravelerCard({ traveler, onCheckIn, onMarkNoShow, onContact }: Traveler
                     </button>
                 </div>
 
-                {/* Expanded details */}
+                {/* Expanded details — shows traveler contact info and check-in time */}
                 {expanded && (
                     <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
-                        {/* Contact info */}
                         <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm">
                                 <Mail className="w-4 h-4 text-gray-400" />
-                                <a href={`mailto:${traveler.email}`} className="text-blue-600 dark:text-blue-400">
-                                    {traveler.email}
+                                <a href={`mailto:${booking.traveler?.email}`} className="text-blue-600 dark:text-blue-400">
+                                    {booking.traveler?.email}
                                 </a>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                                <Phone className="w-4 h-4 text-gray-400" />
-                                <a href={`tel:${traveler.phone}`} className="text-blue-600 dark:text-blue-400">
-                                    {traveler.phone}
-                                </a>
-                            </div>
-                            {traveler.checkInTime && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <Clock className="w-4 h-4" />
-                                    <span>Checked in at {traveler.checkInTime}</span>
+                            {booking.traveler?.phoneE164 && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Phone className="w-4 h-4 text-gray-400" />
+                                    <a href={`tel:${booking.traveler.phoneE164}`} className="text-blue-600 dark:text-blue-400">
+                                        {booking.traveler.phoneE164}
+                                    </a>
+                                </div>
+                            )}
+
+                            {/* Traveler's personalized message / request note */}
+                            {booking.message && (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-1 text-blue-800 dark:text-blue-300">
+                                        <MessageSquare className="w-3.5 h-3.5" />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Note from Traveler</span>
+                                    </div>
+                                    <p className="text-sm text-blue-700 dark:text-blue-200 indent-0 italic">
+                                        &ldquo;{booking.message}&rdquo;
+                                    </p>
+                                </div>
+                            )}
+                            {/* Show check-in timestamp if guide has already scanned this traveler */}
+                            {booking.checkedInAtUtc && (
+                                <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Checked in at {new Date(booking.checkedInAtUtc).toLocaleTimeString()}</span>
+                                </div>
+                            )}
+                            {/* Show completion timestamp for audit trail */}
+                            {booking.completedAtUtc && (
+                                <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Completed at {new Date(booking.completedAtUtc).toLocaleTimeString()}</span>
                                 </div>
                             )}
                         </div>
-
-                        {/* Special requests */}
-                        {traveler.specialRequests && (
-                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
-                                <p className="text-xs text-amber-800 dark:text-amber-300">
-                                    <span className="font-semibold">Special request:</span> {traveler.specialRequests}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Emergency contact */}
-                        {traveler.emergencyContact && (
-                            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                                    Emergency Contact
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-400">
-                                    {traveler.emergencyContact.name} ({traveler.emergencyContact.relationship})
-                                </p>
-                                <a href={`tel:${traveler.emergencyContact.phone}`} className="text-xs text-blue-600 dark:text-blue-400">
-                                    {traveler.emergencyContact.phone}
-                                </a>
-                            </div>
-                        )}
                     </div>
                 )}
-            </div>
-        </div>
-    )
-}
-
-// ============================================================================
-// WAITLIST CARD COMPONENT
-// ============================================================================
-
-interface WaitlistCardProps {
-    entry: WaitlistEntry
-    onNotify: (entryId: string) => void
-    onPromote: (entryId: string) => void
-}
-
-function WaitlistCard({ entry, onNotify, onPromote }: WaitlistCardProps) {
-    return (
-        <div className="
-      p-4
-      bg-purple-50 dark:bg-purple-950/30
-      border border-purple-200 dark:border-purple-800
-      rounded-xl
-    ">
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="
-            w-8 h-8
-            bg-purple-200 dark:bg-purple-900
-            rounded-full
-            flex items-center justify-center
-            text-purple-700 dark:text-purple-300
-            font-bold text-sm
-          ">
-                        {entry.position}
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">
-                            {entry.travelerName}
-                        </h4>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <Users className="w-3 h-3" />
-                            <span>{entry.peopleCount} people</span>
-                            <span>•</span>
-                            <span>Requested {new Date(entry.requestedAt).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {!entry.notified && (
-                    <span className="
-            px-2 py-1
-            bg-amber-100 dark:bg-amber-900/30
-            text-amber-700 dark:text-amber-300
-            text-xs font-medium
-            rounded-full
-          ">
-                        New
-                    </span>
-                )}
-            </div>
-
-            <div className="flex gap-2 mt-3">
-                <button
-                    onClick={() => onNotify(entry.id)}
-                    className="
-            flex-1
-            px-3 py-1.5
-            bg-blue-600 hover:bg-blue-700
-            text-white text-sm
-            rounded-lg
-            transition-colors
-          "
-                >
-                    Notify
-                </button>
-                <button
-                    onClick={() => onPromote(entry.id)}
-                    className="
-            flex-1
-            px-3 py-1.5
-            bg-emerald-600 hover:bg-emerald-700
-            text-white text-sm
-            rounded-lg
-            transition-colors
-          "
-                >
-                    Promote
-                </button>
             </div>
         </div>
     )
@@ -847,15 +634,27 @@ function WaitlistCard({ entry, onNotify, onPromote }: WaitlistCardProps) {
 // ============================================================================
 
 interface TourOverviewProps {
-    tour: ActiveTour
-    onStartTour: () => void
+    group: OccurrenceGroup
+    tourStatus: TourStatus
     onCompleteTour: () => void
 }
 
-function TourOverview({ tour, onStartTour, onCompleteTour }: TourOverviewProps) {
-    const startTime = new Date(`${tour.date}T${tour.startTime}`)
-    const now = new Date()
-    const minutesUntilStart = Math.floor((startTime.getTime() - now.getTime()) / (1000 * 60))
+// Displays the selected occurrence's summary with stats, meeting time, and
+// the "Complete Tour" button (which marks all InProgress bookings as Completed).
+function TourOverview({ group, tourStatus, onCompleteTour }: TourOverviewProps) {
+    const startTime = new Date(group.startTimeUtc)
+    const endTime = new Date(group.endTimeUtc)
+    const currentTime = new Date()
+    const minutesUntilStart = Math.floor((startTime.getTime() - currentTime.getTime()) / (1000 * 60))
+
+    // Compute stats from real bookings
+    const confirmedCount = group.bookings.filter(
+        b => b.status === BookingStatus.Confirmed
+    ).length
+    const checkedInCount = group.bookings.filter(
+        b => b.status === BookingStatus.InProgress || b.status === BookingStatus.Completed
+    ).length
+    const totalBookings = group.bookings.length
 
     return (
         <div className="
@@ -867,13 +666,22 @@ function TourOverview({ tour, onStartTour, onCompleteTour }: TourOverviewProps) 
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                        {tour.title}
-                    </h2>
+                    <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                            {group.tourTitle}
+                        </h2>
+                        <Link
+                            href={`/tours/${group.tourId}`}
+                            className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+                            title="View Public Tour Page"
+                        >
+                            <ExternalLink className="w-4 h-4" />
+                        </Link>
+                    </div>
                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
-                            {new Date(tour.date).toLocaleDateString('en-US', {
+                            {startTime.toLocaleDateString('en-US', {
                                 weekday: 'long',
                                 month: 'long',
                                 day: 'numeric'
@@ -881,93 +689,45 @@ function TourOverview({ tour, onStartTour, onCompleteTour }: TourOverviewProps) 
                         </span>
                         <span className="flex items-center gap-1">
                             <Clock className="w-4 h-4" />
-                            {tour.startTime} - {tour.endTime}
+                            {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                            <Timer className="w-3.5 h-3.5" />
+                            {Math.round((endTime.getTime() - startTime.getTime()) / 3600000 * 10) / 10}h Duration
                         </span>
                     </div>
                 </div>
-                <TourStatusBadge status={tour.status} />
+                <TourStatusBadge status={tourStatus} />
             </div>
 
             {/* Stats grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                 <div className="text-center">
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {tour.checkedInCount}/{tour.confirmedCount}
+                        {checkedInCount}/{totalBookings}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Checked In</div>
                 </div>
                 <div className="text-center">
                     <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                        {tour.pendingCount}
+                        {confirmedCount}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Pending</div>
-                </div>
-                <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        {tour.noShowCount}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">No Shows</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Pending Check-in</div>
                 </div>
                 <div className="text-center">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                        {tour.waitlist.length}
+                        {totalBookings}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Waitlist</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Total Bookings</div>
                 </div>
             </div>
 
-            {/* Meeting point */}
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-4">
-                <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {tour.meetingPoint.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {tour.meetingPoint.address}
-                        </p>
-                        {tour.meetingPoint.instructions && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                📍 {tour.meetingPoint.instructions}
-                            </p>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Weather and actions */}
-            <div className="flex items-center justify-between">
-                {tour.weatherInfo && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-2xl">{tour.weatherInfo.icon}</span>
-                        <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {tour.weatherInfo.condition}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {tour.weatherInfo.temperature}°C
-                            </p>
-                        </div>
-                    </div>
-                )}
-
+            {/* Actions */}
+            <div className="flex items-center justify-end">
                 <div className="flex gap-2">
-                    {tour.status === 'scheduled' && (
-                        <button
-                            onClick={onStartTour}
-                            className="
-                px-4 py-2
-                bg-emerald-600 hover:bg-emerald-700
-                text-white
-                rounded-lg
-                transition-colors
-              "
-                        >
-                            Start Tour
-                        </button>
-                    )}
-                    {tour.status === 'in-progress' && (
+                    {/* Complete Tour: marks all InProgress bookings as Completed.
+                        Only shows when at least one booking is InProgress. */}
+                    {tourStatus === 'in-progress' && (
                         <button
                             onClick={onCompleteTour}
                             className="
@@ -984,8 +744,8 @@ function TourOverview({ tour, onStartTour, onCompleteTour }: TourOverviewProps) 
                 </div>
             </div>
 
-            {/* Countdown */}
-            {tour.status === 'scheduled' && minutesUntilStart > 0 && minutesUntilStart < 60 && (
+            {/* Countdown timer — shows when tour is scheduled and starting soon */}
+            {tourStatus === 'scheduled' && minutesUntilStart > 0 && minutesUntilStart < 60 && (
                 <div className="mt-4 p-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-center">
                     <Timer className="w-4 h-4 inline-block text-amber-600 dark:text-amber-400 mr-1" />
                     <span className="text-sm text-amber-800 dark:text-amber-300">
@@ -1003,82 +763,192 @@ function TourOverview({ tour, onStartTour, onCompleteTour }: TourOverviewProps) 
 
 export default function GuideOnTourPage() {
     const router = useRouter()
-    const [selectedTour, setSelectedTour] = useState<ActiveTour>(MOCK_ACTIVE_TOURS[0])
-    const [showQRScanner, setShowQRScanner] = useState(false)
-    const [activeTab, setActiveTab] = useState<'travelers' | 'waitlist'>('travelers')
+
+    // All guide bookings, grouped by occurrence for the tour selector
+    const [groups, setGroups] = useState<OccurrenceGroup[]>([])
+    // The currently selected occurrence group (one "active tour")
+    const [selectedGroup, setSelectedGroup] = useState<OccurrenceGroup | null>(null)
+    const [isScannerOpen, setIsScannerOpen] = useState(false)
+    const [activeTab, setActiveTab] = useState<'travelers' | 'info'>('travelers')
     const [searchTerm, setSearchTerm] = useState('')
+    const [isLoading, setIsLoading] = useState(true)
+    const [isProcessing, setIsProcessing] = useState(false)
+    const [now, setNow] = useState(new Date())
 
-    // Filter travelers based on search
-    const filteredTravelers = selectedTour.travelers.filter(traveler =>
-        traveler.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        traveler.bookingId.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    // Update 'now' every minute to keep time-gated buttons fresh
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 60000)
+        return () => clearInterval(timer)
+    }, [])
 
-    const handleCheckIn = (travelerId: string) => {
-        setSelectedTour(prev => ({
-            ...prev,
-            travelers: prev.travelers.map(t =>
-                t.id === travelerId
-                    ? { ...t, checkInStatus: 'checked-in', checkInTime: new Date().toLocaleTimeString() }
-                    : t
-            ),
-            checkedInCount: prev.checkedInCount + 1,
-            pendingCount: prev.pendingCount - 1
-        }))
-    }
+    // ── Data loading ──────────────────────────────────────────────────────────
+    // Fetch all guide bookings then group by occurrenceId.
+    // We show Confirmed and InProgress bookings as "active" occurrences;
+    // Completed bookings are also shown so the guide can see the full roster
+    // once the tour is done.
 
-    const handleMarkNoShow = (travelerId: string) => {
-        setSelectedTour(prev => ({
-            ...prev,
-            travelers: prev.travelers.map(t =>
-                t.id === travelerId ? { ...t, checkInStatus: 'no-show' } : t
-            ),
-            noShowCount: prev.noShowCount + 1,
-            pendingCount: prev.pendingCount - 1
-        }))
-    }
+    const fetchActiveBookings = useCallback(async () => {
+        setIsLoading(true)
+        try {
+            const res = await getGuideBookings()
+            const bookings: GuideBookingResponse[] = res.data || []
 
-    const handleContactTraveler = (traveler: Traveler) => {
-        // In Phase 4: Open chat or message modal
-        console.log('Contact traveler:', traveler)
-    }
+            // Group bookings by occurrence — each occurrence = one tour run
+            const grouped = bookings.reduce((acc, booking) => {
+                const id = booking.occurrenceId
+                if (!acc[id]) {
+                    acc[id] = {
+                        occurrenceId: id,
+                        tourId: booking.tourId,
+                        tourTitle: booking.tourTitle,
+                        startTimeUtc: booking.startTimeUtc,
+                        endTimeUtc: booking.endTimeUtc,
+                        bookings: []
+                    }
+                }
+                acc[id].bookings.push(booking)
+                return acc
+            }, {} as Record<number, OccurrenceGroup>)
 
-    const handleQRScan = (qrData: string) => {
-        // Find traveler by QR code
-        const traveler = selectedTour.travelers.find(t => t.qrCode === qrData)
-        if (traveler && traveler.checkInStatus === 'pending') {
-            handleCheckIn(traveler.id)
+            const occurrenceGroups = Object.values(grouped)
+            setGroups(occurrenceGroups)
+
+            // Update selected group without creating a circular dependency
+            setSelectedGroup(prev => {
+                if (occurrenceGroups.length === 0) return null
+                if (!prev) return occurrenceGroups[0]
+                
+                // Re-select same occurrence to preserve context, or fallback to first
+                const refreshed = occurrenceGroups.find(g => g.occurrenceId === prev.occurrenceId)
+                return refreshed || occurrenceGroups[0]
+            })
+        } catch {
+            toast.error('Failed to load active tours')
+        } finally {
+            setIsLoading(false)
+        }
+    }, []) // Stable dependency array prevents infinite loops
+
+    // Load bookings on mount
+    useEffect(() => {
+        fetchActiveBookings()
+    }, [fetchActiveBookings])
+
+    // ── Handlers ──────────────────────────────────────────────────────────────
+
+
+    // Called by the QR scanner modal when a token is confirmed.
+    // The raw UUID scanned from the traveler's QR code is sent directly
+    // to the backend, which validates it against this guide's own occurrences.
+    const handleQRScan = async (qrToken: string) => {
+        setIsProcessing(true)
+        try {
+            const res = await checkInByQrToken(qrToken)
+            toast.success(`${res.data.traveler?.fullName || 'Traveler'} checked in!`)
+            fetchActiveBookings()
+        } catch (err: any) {
+            const errorMessage = err.response?.data?.message || 'QR check-in failed';
+            
+            if (err.response?.status === 404) {
+                toast.error('QR code not recognized or not your tour')
+            } else {
+                toast.error(errorMessage)
+            }
+        } finally {
+            setIsProcessing(false)
         }
     }
 
-    const handleNotifyWaitlist = (entryId: string) => {
-        setSelectedTour(prev => ({
-            ...prev,
-            waitlist: prev.waitlist.map(w =>
-                w.id === entryId ? { ...w, notified: true } : w
-            )
-        }))
+    const handleNoShow = async (bookingId: number) => {
+        if (!confirm('Are you sure you want to mark this traveler as a No-Show? This will cancel their booking.')) return
+
+        setIsProcessing(true)
+        try {
+            await noShowBooking(bookingId, 'No-Show')
+            toast.success('Traveler marked as No-Show')
+            fetchActiveBookings()
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to report no-show')
+        } finally {
+            setIsProcessing(false)
+        }
     }
 
-    const handlePromoteWaitlist = (entryId: string) => {
-        // In Phase 4: Move from waitlist to confirmed booking
-        console.log('Promote waitlist entry:', entryId)
+    // Contact traveler — future chat card
+    const onContact = (booking: GuideBookingResponse) => {
+        if (booking.traveler?.email) {
+            window.location.href = `mailto:${booking.traveler.email}`
+        }
     }
 
-    const handleStartTour = () => {
-        setSelectedTour(prev => ({
-            ...prev,
-            status: 'in-progress'
-        }))
+    // Complete tour — marks ALL InProgress bookings for this occurrence as Completed.
+    // completedAtUtc starts the 48h payout freeze (future payout card).
+    const handleCompleteTour = async () => {
+        if (!selectedGroup) return
+        const inProgressBookings = selectedGroup.bookings.filter(
+            b => b.status === BookingStatus.InProgress
+        )
+        if (inProgressBookings.length === 0) {
+            toast.error('No in-progress bookings to complete')
+            return
+        }
+        setIsProcessing(true)
+        try {
+            await Promise.all(inProgressBookings.map(b => completeBooking(b.id)))
+            toast.success('Tour marked as completed!')
+            fetchActiveBookings()
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to complete tour')
+        } finally {
+            setIsProcessing(false)
+        }
     }
 
-    const handleCompleteTour = () => {
-        setSelectedTour(prev => ({
-            ...prev,
-            status: 'completed'
-        }))
-        // In Phase 4: Trigger payout countdown
+    // Derived state — filter travelers by search term within the selected group
+    const filteredBookings = selectedGroup
+        ? selectedGroup.bookings.filter(b =>
+            (b.traveler?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            String(b.id).includes(searchTerm)
+        )
+        : []
+
+    const tourStatus = selectedGroup ? deriveTourStatus(selectedGroup.bookings) : 'scheduled'
+
+    // ── Loading state ─────────────────────────────────────────────────────────
+
+    if (isLoading) {
+        return (
+            <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+        )
     }
+
+    // ── Empty state — no active bookings ──────────────────────────────────────
+
+    if (groups.length === 0) {
+        return (
+            <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
+                <div className="container-safe mx-auto max-w-7xl py-8 sm:py-10">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                        On-Tour Toolkit
+                    </h1>
+                    <div className="text-center py-20">
+                        <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-700" />
+                        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            No Active Tours
+                        </h2>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                            You don&apos;t have any upcoming tours with confirmed bookings yet.
+                            Once travelers book your tours, they&apos;ll appear here.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // ── Main render ───────────────────────────────────────────────────────────
 
     return (
         <>
@@ -1094,18 +964,18 @@ export default function GuideOnTourPage() {
                                 On-Tour Toolkit
                             </h1>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Manage your active tours, check in travelers, and handle waitlists
+                                Manage your active tours, check in travelers, and track progress
                             </p>
                         </div>
 
                         <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
-                            {/* Tour selector */}
+                            {/* Tour selector — picks which occurrence to manage */}
                             <div className="relative flex-1 min-w-0 sm:w-80">
                                 <Listbox
-                                    value={selectedTour.id}
+                                    value={selectedGroup?.occurrenceId || 0}
                                     onChange={(val) => {
-                                        const tour = MOCK_ACTIVE_TOURS.find(t => t.id === val)
-                                        if (tour) setSelectedTour(tour)
+                                        const group = groups.find(g => g.occurrenceId === val)
+                                        if (group) setSelectedGroup(group)
                                     }}
                                 >
                                     <div className="relative min-w-0">
@@ -1123,7 +993,11 @@ export default function GuideOnTourPage() {
                     ">
                                             <span className="flex items-center gap-2 min-w-0 truncate font-medium">
                                                 <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                                                <span className="truncate">{selectedTour.date} - {selectedTour.title}</span>
+                                                <span className="truncate">
+                                                    {selectedGroup
+                                                        ? `${new Date(selectedGroup.startTimeUtc).toLocaleDateString()} - ${selectedGroup.tourTitle}`
+                                                        : 'Select a tour'}
+                                                </span>
                                             </span>
                                             <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0 transition-transform duration-200 ui-open:rotate-180" />
                                         </ListboxButton>
@@ -1139,10 +1013,10 @@ export default function GuideOnTourPage() {
                         py-1.5 text-sm shadow-xl ring-1 ring-black/5 dark:ring-white/10 
                         focus:outline-none scrollbar-hide
                       ">
-                                                {MOCK_ACTIVE_TOURS.map((tour) => (
+                                                {groups.map((group) => (
                                                     <ListboxOption
-                                                        key={tour.id}
-                                                        value={tour.id}
+                                                        key={group.occurrenceId}
+                                                        value={group.occurrenceId}
                                                         className={({ focus, selected }) => `
                               relative cursor-default select-none py-2.5 pl-10 pr-4 transition-colors
                               ${focus ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-200'}
@@ -1152,7 +1026,7 @@ export default function GuideOnTourPage() {
                                                         {({ selected }) => (
                                                             <>
                                                                 <span className={`block truncate ${selected ? 'text-blue-600 dark:text-blue-400' : ''}`}>
-                                                                    {tour.date} - {tour.title}
+                                                                    {new Date(group.startTimeUtc).toLocaleDateString()} - {group.tourTitle}
                                                                 </span>
                                                                 {selected ? (
                                                                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600 dark:text-blue-400">
@@ -1169,9 +1043,26 @@ export default function GuideOnTourPage() {
                                 </Listbox>
                             </div>
 
+                            {/* Refresh button */}
+                            <button
+                                onClick={fetchActiveBookings}
+                                disabled={isProcessing}
+                                className="
+                  flex-shrink-0
+                  p-2.5
+                  bg-white dark:bg-gray-900
+                  border border-gray-200 dark:border-gray-800
+                  rounded-xl
+                  hover:bg-gray-50 dark:hover:bg-gray-800
+                  transition-colors
+                "
+                            >
+                                <RefreshCw className={`w-5 h-5 text-gray-500 ${isProcessing ? 'animate-spin' : ''}`} />
+                            </button>
+
                             {/* QR Scanner button */}
                             <button
-                                onClick={() => setShowQRScanner(true)}
+                                onClick={() => setIsScannerOpen(true)}
                                 className="
                   flex-shrink-0
                   flex items-center gap-2
@@ -1190,11 +1081,13 @@ export default function GuideOnTourPage() {
                     </div>
 
                     {/* Tour Overview */}
-                    <TourOverview
-                        tour={selectedTour}
-                        onStartTour={handleStartTour}
-                        onCompleteTour={handleCompleteTour}
-                    />
+                    {selectedGroup && (
+                        <TourOverview
+                            group={selectedGroup}
+                            tourStatus={tourStatus}
+                            onCompleteTour={handleCompleteTour}
+                        />
+                    )}
 
                     {/* Tabs */}
                     <div className="flex gap-2 mt-6 mb-4">
@@ -1213,24 +1106,24 @@ export default function GuideOnTourPage() {
               `}
                         >
                             <Users className="w-4 h-4" />
-                            Travelers ({selectedTour.travelers.length})
+                            Travelers ({selectedGroup?.bookings.length || 0})
                         </button>
                         <button
-                            onClick={() => setActiveTab('waitlist')}
+                            onClick={() => setActiveTab('info')}
                             className={`
                 px-4 py-2
                 rounded-lg
                 font-medium
                 transition-colors
                 flex items-center gap-2
-                ${activeTab === 'waitlist'
+                ${activeTab === 'info'
                                     ? 'bg-purple-600 text-white'
                                     : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-800'
                                 }
               `}
                         >
-                            <UserPlus className="w-4 h-4" />
-                            Waitlist ({selectedTour.waitlist.length})
+                            <Info className="w-4 h-4" />
+                            Info
                         </button>
                     </div>
 
@@ -1267,14 +1160,14 @@ export default function GuideOnTourPage() {
                     {/* Travelers List */}
                     {activeTab === 'travelers' && (
                         <div className="space-y-3">
-                            {filteredTravelers.length > 0 ? (
-                                filteredTravelers.map(traveler => (
+                            {filteredBookings.length > 0 ? (
+                                filteredBookings.map(booking => (
                                     <TravelerCard
-                                        key={traveler.id}
-                                        traveler={traveler}
-                                        onCheckIn={handleCheckIn}
-                                        onMarkNoShow={handleMarkNoShow}
-                                        onContact={handleContactTraveler}
+                                        key={booking.id}
+                                        booking={booking}
+                                        now={now}
+                                        onNoShow={handleNoShow}
+                                        onContact={onContact}
                                     />
                                 ))
                             ) : (
@@ -1288,63 +1181,84 @@ export default function GuideOnTourPage() {
                         </div>
                     )}
 
-                    {/* Waitlist */}
-                    {activeTab === 'waitlist' && (
-                        <div className="space-y-3">
-                            {selectedTour.waitlist.length > 0 ? (
-                                selectedTour.waitlist.map(entry => (
-                                    <WaitlistCard
-                                        key={entry.id}
-                                        entry={entry}
-                                        onNotify={handleNotifyWaitlist}
-                                        onPromote={handlePromoteWaitlist}
-                                    />
-                                ))
-                            ) : (
-                                <div className="text-center py-12">
-                                    <UserPlus className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-700" />
-                                    <p className="text-gray-500 dark:text-gray-400">
-                                        No waitlist entries
-                                    </p>
+                    {/* Info tab — waitlist is read-only for guides, explain auto-promotion */}
+                    {activeTab === 'info' && (
+                        <div className="space-y-4">
+                            {/* Waitlist explainer — guides have no waitlist management API */}
+                            <div className="
+                p-4 
+                bg-purple-50 dark:bg-purple-950/20
+                border border-purple-200 dark:border-purple-800
+                rounded-xl
+              ">
+                                <div className="flex items-start gap-3">
+                                    <UserPlus className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+                                    <div>
+                                        <h3 className="font-semibold text-purple-900 dark:text-purple-200 mb-1">
+                                            Waitlist
+                                        </h3>
+                                        <p className="text-sm text-purple-700 dark:text-purple-300">
+                                            Travelers manage their own waitlist entries. When a confirmed booking
+                                            is cancelled, the first eligible waitlisted traveler is automatically
+                                            promoted to a real booking by the system — no guide action required.
+                                        </p>
+                                    </div>
                                 </div>
-                            )}
+                            </div>
+
+                            {/* How check-in works */}
+                            <div className="
+                p-4 
+                bg-blue-50 dark:bg-blue-950/20
+                border border-blue-200 dark:border-blue-800
+                rounded-xl
+              ">
+                                <div className="flex items-start gap-3">
+                                    <QrCode className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                                    <div>
+                                        <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                                            QR Check-in
+                                        </h3>
+                                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                                            Scan the traveler&apos;s QR code at the meeting point to verify their ticket. 
+                                            This is mandatory for check-in and moves their booking from Confirmed to In Progress.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     {/* Quick stats footer */}
-                    <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                                {selectedTour.checkedInCount}/{selectedTour.confirmedCount}
+                    {selectedGroup && (
+                        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
+                                <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                    {selectedGroup.bookings.filter(b => b.status === BookingStatus.InProgress || b.status === BookingStatus.Completed).length}/{selectedGroup.bookings.length}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Checked In</div>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Checked In</div>
-                        </div>
-                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
-                            <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                                {selectedTour.pendingCount}
+                            <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
+                                <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                                    {selectedGroup.bookings.filter(b => b.status === BookingStatus.Confirmed).length}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Pending</div>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Pending</div>
-                        </div>
-                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
-                            <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                                {selectedTour.noShowCount}
+                            <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
+                                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                                    {selectedGroup.bookings.length}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Total Bookings</div>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">No Shows</div>
                         </div>
-                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-center">
-                            <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                {selectedTour.waitlist.length}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Waitlist</div>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
             {/* QR Scanner Modal */}
             <QRScannerModal
-                isOpen={showQRScanner}
-                onClose={() => setShowQRScanner(false)}
+                isOpen={isScannerOpen}
+                onClose={() => setIsScannerOpen(false)}
                 onScan={handleQRScan}
             />
         </>

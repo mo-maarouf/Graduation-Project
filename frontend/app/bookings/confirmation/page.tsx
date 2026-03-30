@@ -1,21 +1,16 @@
 // ============================================================================
-// BOOKING CONFIRMATION PAGE
+// BOOKING CONFIRMATION PAGE — WIRED TO REAL BACKEND
 // ============================================================================
-// LOCATION: /frontend/src/app/booking/confirmation/page.tsx
-// 
-// PURPOSE: Show success message after booking
-// 
-// FEATURES:
-// - Booking details summary
-// - QR code display
-// - Download ticket option
-// - Add to calendar
-// - Share booking
+// LOCATION: /frontend/app/bookings/confirmation/page.tsx
 //
-// FIXES APPLIED:
-// 1. Added toast import
-// 2. All buttons now functional
-// 3. API-ready structure
+// PURPOSE: Post-booking success page showing booking summary, QR code, and
+//          action buttons (add to calendar, download invoice, share).
+//
+// DATA SOURCE: getTravelerBooking(id) → BookingResponse
+// The booking ID comes from ?id= search param, set by the booking flow.
+//
+// IMPORTANT: qrCode (UUID) is only available on the traveler's own booking
+//            response. Never expose it to guides or public pages.
 // ============================================================================
 
 'use client'
@@ -23,8 +18,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import toast from 'react-hot-toast'
+import { QRCodeCanvas } from 'qrcode.react'
 import {
   CheckCircle,
   Calendar,
@@ -37,76 +32,61 @@ import {
   Calendar as CalendarIcon,
   QrCode,
   ChevronRight,
-  Mail,
-  Phone,
-  MessageSquare
+  Loader2
 } from 'lucide-react'
 import PageLayout from '@/src/components/layout/PageLayout'
 
-// Mock booking data - replace with API call
-const MOCK_BOOKING = {
-  id: 'B123456',
-  tourTitle: 'Ottoman Heritage: Topkapi Palace & Hagia Sophia',
-  tourImage: '/images/tours/istanbul-ottoman.jpg',
-  date: '2026-04-15T09:00:00Z',
-  duration: '4 hours',
-  meetingPoint: 'Sultanahmet Square Fountain',
-  guideName: 'Mehmet Yilmaz',
-  guideAvatar: '/images/guides/mehmet.jpg',
-  travelers: 2,
-  totalPrice: 178,
-  currency: 'USD',
-  qrCode: 'QR-BOOKING-123',
-  status: 'confirmed'
-}
+import { getTravelerBooking } from '@/src/lib/api/tours'
+import { BookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
 
 export default function BookingConfirmationPage() {
   const searchParams = useSearchParams()
-  const [booking, setBooking] = useState(MOCK_BOOKING)
-  const [showQR, setShowQR] = useState(false)
-
-  // In Phase 2: fetch booking by ID from URL
   const bookingId = searchParams.get('id')
 
-  const date = new Date(booking.date)
-  const formattedDate = date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  })
-  const formattedTime = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit'
-  })
+  const [booking, setBooking] = useState<BookingResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showQR, setShowQR] = useState(false)
 
-  // ========================================
-  // HANDLERS - All functional now
-  // ========================================
+  // ── Fetch the booking created by the booking flow ──────────────────────
+  // ?id= is set by the "Book Now" handler after createBooking() succeeds.
+  // If the ID is missing or fetch fails, we show a placeholder message.
+
+  useEffect(() => {
+    const fetchBooking = async () => {
+      if (!bookingId) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        const res = await getTravelerBooking(Number(bookingId))
+        setBooking(res.data)
+      } catch {
+        toast.error('Could not load booking details')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchBooking()
+  }, [bookingId])
+
+  // ── Calendar download (.ics file) ──────────────────────────────────────
+  // Generates a standard iCalendar file from the booking date/time.
 
   const handleAddToCalendar = () => {
-    // Create .ics file for calendar
-    const event = {
-      title: booking.tourTitle,
-      description: `Tour with ${booking.guideName}`,
-      location: booking.meetingPoint,
-      startTime: booking.date,
-      endTime: new Date(new Date(booking.date).getTime() + 4 * 60 * 60 * 1000).toISOString(), // +4 hours
-    }
-    
-    // Generate .ics file
+    if (!booking) return
+    const start = new Date(booking.startTimeUtc)
+    const end = new Date(booking.endTimeUtc)
+
     const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
-SUMMARY:${event.title}
-DESCRIPTION:${event.description}
-LOCATION:${event.location}
-DTSTART:${new Date(event.startTime).toISOString().replace(/[-:]/g, '').split('.')[0]}Z
-DTEND:${new Date(event.endTime).toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+SUMMARY:${booking.tourTitle}
+LOCATION:${booking.meetingPointName || 'See booking details'}
+DTSTART:${start.toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+DTEND:${end.toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 END:VEVENT
 END:VCALENDAR`
-    
-    // Download as .ics file
+
     const blob = new Blob([icsContent], { type: 'text/calendar' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -114,30 +94,30 @@ END:VCALENDAR`
     a.download = `${booking.tourTitle.replace(/\s+/g, '_')}.ics`
     a.click()
     URL.revokeObjectURL(url)
-    
+
     toast.success('Calendar event downloaded!')
   }
 
-  const handleDownloadInvoice = async () => {
-    // Phase 2: API call to generate PDF
-    // For now, create a simple text invoice
+  // ── Invoice download (text placeholder — PDF generation is future) ─────
+
+  const handleDownloadInvoice = () => {
+    if (!booking) return
     const invoice = `
-SAFARIHUB - INVOICE
+TRAVEL MARKET - INVOICE
 ===================
-Booking Reference: ${booking.id}
+Booking Reference: #${booking.id}
 Date: ${new Date().toLocaleDateString()}
 
 Tour: ${booking.tourTitle}
-Date: ${formattedDate} at ${formattedTime}
-Guide: ${booking.guideName}
-Travelers: ${booking.travelers}
+Date: ${new Date(booking.startTimeUtc).toLocaleDateString()}
+Travelers: ${booking.peopleCount}
 
-Total: $${booking.totalPrice}
-Status: PAID
+Total: ${booking.currency} ${booking.finalPrice.toFixed(2)}
+Status: ${booking.status}
 
-Thank you for choosing SafariHub!
+Thank you for choosing TravelMarket!
   `
-    
+
     const blob = new Blob([invoice], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -145,66 +125,138 @@ Thank you for choosing SafariHub!
     a.download = `invoice-${booking.id}.txt`
     a.click()
     URL.revokeObjectURL(url)
-    
+
     toast.success('Invoice downloaded!')
   }
 
+  // ── Web Share API with clipboard fallback ──────────────────────────────
+
   const handleShare = () => {
+    if (!booking) return
     if (navigator.share) {
       navigator.share({
         title: booking.tourTitle,
-        text: `I just booked "${booking.tourTitle}" on SafariHub!`,
+        text: `I just booked "${booking.tourTitle}" on TravelMarket!`,
         url: window.location.href,
       }).catch(() => {
-        // User cancelled share
+        // User cancelled share — no-op
       })
     } else {
-      // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href)
       toast.success('Link copied to clipboard!')
     }
   }
 
+  // ── Loading state ──────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      </PageLayout>
+    )
+  }
+
+  // ── No booking found ──────────────────────────────────────────────────
+
+  if (!booking) {
+    return (
+      <PageLayout>
+        <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
+          <div className="container-safe mx-auto max-w-3xl py-8 sm:py-12 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              Booking Not Found
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              We couldn&apos;t find your booking. It may have already been processed.
+            </p>
+            <Link
+              href="/dashboard/traveler/bookings"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              View My Bookings
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </PageLayout>
+    )
+  }
+
+  // Format dates for display — all backend dates are UTC ISO strings
+  const startDate = new Date(booking.startTimeUtc)
+  const formattedDate = startDate.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  })
+  const formattedTime = startDate.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+
+  // Determine if booking is pending review (Request to Book mode)
+  const isPending = booking.status === BookingStatus.PendingGuide
+
   return (
     <PageLayout>
       <div className="pt-14 sm:pt-16 min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="container-safe mx-auto max-w-3xl py-8 sm:py-12">
-          
+
           {/* Success Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 mb-4 bg-emerald-100 dark:bg-emerald-900/30 rounded-full">
               <CheckCircle className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Booking Confirmed!
+              {isPending ? 'Booking Request Sent!' : 'Booking Confirmed!'}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Your booking reference: <span className="font-mono font-bold">{booking.id}</span>
+              Your booking reference: <span className="font-mono font-bold">#{booking.id}</span>
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-              A confirmation has been sent to your email
-            </p>
+            {isPending && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                Your guide will review and confirm this booking within 24 hours.
+              </p>
+            )}
+            {!isPending && (
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                A confirmation has been sent to your email
+              </p>
+            )}
           </div>
 
           {/* Main Card */}
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl overflow-hidden mb-6">
-            
+
             {/* Tour Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-800">
               <div className="flex items-start gap-4">
-                <div className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                  <Image src={booking.tourImage} alt={booking.tourTitle} width={80} height={80} className="object-cover" />
+                {/* Cover image placeholder — real tour image URL if backend returns it */}
+                <div className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                  {booking.tourCoverImageUrl ? (
+                    <img src={booking.tourCoverImageUrl} alt={booking.tourTitle} className="w-full h-full object-cover" />
+                  ) : (
+                    <Calendar className="w-8 h-8 text-gray-400" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
                     {booking.tourTitle}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Guided by {booking.guideName}
+                    {booking.bookingMode === 'Instant' ? 'Instant Book' : 'Request to Book'}
                   </p>
                 </div>
-                <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium rounded-full">
-                  Confirmed
+                <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                  isPending
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                    : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {isPending ? 'Pending' : 'Confirmed'}
                 </span>
               </div>
             </div>
@@ -217,23 +269,27 @@ Thank you for choosing SafariHub!
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Date & Time</p>
                     <p className="font-medium text-gray-900 dark:text-white">{formattedDate}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{formattedTime} • {booking.duration}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{formattedTime}</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Meeting Point</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{booking.meetingPoint}</p>
+                {booking.meetingPointName && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Meeting Point</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{booking.meetingPointName}</p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex items-start gap-3">
                   <Users className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Travelers</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{booking.travelers} people</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'}
+                    </p>
                   </div>
                 </div>
 
@@ -242,54 +298,56 @@ Thank you for choosing SafariHub!
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Total Paid</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {booking.currency === 'USD' && '$'}
-                      {booking.currency === 'TRY' && '₺'}
-                      {booking.currency === 'LBP' && 'ل.ل '}
-                      {booking.totalPrice}
+                      {booking.currency} {booking.finalPrice.toFixed(2)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* QR Code Section */}
-              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <QrCode className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">Your QR Ticket</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Show this QR code to your guide at the meeting point
-                      </p>
+              {/* QR Code Section — only show if booking has a qrCode token */}
+              {booking.qrCode && (
+                <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <QrCode className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">Your QR Ticket</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Show this QR code to your guide at the meeting point
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => setShowQR(!showQR)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    {showQR ? 'Hide QR' : 'Show QR'}
-                  </button>
-                </div>
-
-                {showQR && (
-                  <div className="mt-4 p-6 bg-white dark:bg-gray-900 rounded-xl text-center">
-                    <div className="inline-block p-4 bg-white rounded-lg shadow-lg mb-4">
-                      <QrCode className="w-32 h-32 text-gray-900" />
-                    </div>
-                    <p className="text-sm font-mono text-gray-600 dark:text-gray-400 mb-4">
-                      {booking.qrCode}
-                    </p>
-                    <button className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                      <Download className="w-4 h-4" />
-                      Download QR Code
+                    <button
+                      onClick={() => setShowQR(!showQR)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {showQR ? 'Hide QR' : 'Show QR'}
                     </button>
                   </div>
-                )}
-              </div>
+
+                  {showQR && (
+                    <div className="mt-4 p-6 bg-white dark:bg-gray-900 rounded-xl text-center">
+                      {/* QR icon placeholder — in production use a QR generator library */}
+                      <div className="inline-block p-6 bg-white rounded-3xl shadow-2xl border-4 border-gray-50 dark:border-gray-800">
+                        <QRCodeCanvas 
+                          value={booking.qrCode} 
+                          size={160}
+                          level="H"
+                          includeMargin={false}
+                          className="mx-auto"
+                        />
+                      </div>
+                      <p className="text-sm font-mono text-gray-600 dark:text-gray-400 mb-4 break-all">
+                        {booking.qrCode}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Action Buttons - NOW ALL FUNCTIONAL */}
+          {/* Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
             <button
               onClick={handleAddToCalendar}
@@ -317,12 +375,16 @@ Thank you for choosing SafariHub!
           {/* Next Steps */}
           <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
             <h3 className="font-bold text-blue-900 dark:text-blue-100 mb-3">
-              What's Next?
+              What&apos;s Next?
             </h3>
             <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                <span>Your booking is confirmed. Show the QR code at the meeting point.</span>
+                <span>
+                  {isPending
+                    ? 'Your guide will review and confirm your booking within 24 hours.'
+                    : 'Your booking is confirmed. Show the QR code at the meeting point.'}
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -330,7 +392,7 @@ Thank you for choosing SafariHub!
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                <span>You can message your guide anytime through the dashboard.</span>
+                <span>You can view and manage your bookings from the dashboard.</span>
               </li>
             </ul>
           </div>

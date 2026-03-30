@@ -146,4 +146,8 @@ public interface TourOccurrenceRepository extends JpaRepository<TourOccurrence, 
       @Param("now") Instant now);
 
   boolean existsByTemplateIdAndStartTimeUtc(Long templateId, Instant startTimeUtc);
+
+  Optional<TourOccurrence> findByTemplateIdAndStartTimeUtc(Long templateId, Instant startTimeUtc);
+
+  List<TourOccurrence> findAllByTemplateIdAndStartTimeUtcGreaterThanEqual(Long templateId, Instant now);
 }

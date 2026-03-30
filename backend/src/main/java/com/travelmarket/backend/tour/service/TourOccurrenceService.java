@@ -44,10 +44,10 @@ public class TourOccurrenceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Tour not found or does not belong to you"));
 
-        if (onlyPublished && t.getStatus() != TourTemplateStatus.PUBLISHED) {
+        if (onlyPublished && (t.getStatus() == TourTemplateStatus.PENDING_REVIEW || t.getStatus() == TourTemplateStatus.ARCHIVED)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Occurrences can only be created for PUBLISHED tours. " +
-                            "Current status: " + t.getStatus());
+                    "Occurrences cannot be created while the tour is " + t.getStatus() + ". " +
+                            "Please withdraw from review or activate the tour first.");
         }
 
         return t;
@@ -87,6 +87,8 @@ public class TourOccurrenceService {
         o.setEndTimeUtc(req.getEndTimeUtc());
         o.setStatus(TourOccurrenceStatus.SCHEDULED);
         o.setSeatsReserved(0);
+        o.setCapacity(template.getMaxCapacity());
+        o.setAvailableSeats(template.getMaxCapacity());
         occurrenceRepository.save(o);
         return tourMapper.toOccurrenceResponse(o);
     }

@@ -15,6 +15,17 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const formatDateForInput = (dateStr?: string | null) => {
+    if (!dateStr) return ''
+    try {
+      const date = new Date(dateStr)
+      if (isNaN(date.getTime())) return ''
+      return date.toISOString().slice(0, 16)
+    } catch (e) {
+      return ''
+    }
+  }
+
   useEffect(() => {
     const fetchTour = async () => {
       try {
@@ -64,10 +75,13 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
   // Map backend TourTemplateResponse to TourFormData for the form
   const initialData: any = {
     ...tour,
+    shortDescription: tour.shortDescription || '',
     city: tour.city || tour.locationName || '', // Alignment
     country: tour.countryCode === 'LB' ? 'lebanon' : 'turkey', // Alignment
     isHalalCertified: tour.halalFriendly, // Alignment
     instantBookEnabled: tour.instantBook, // Alignment
+    autoCancelIfMinNotMet: tour.autoCancelIfMinNotMet ?? true,
+    showInPortfolio: tour.showInPortfolio ?? true,
     meetingPoint: {
       name: tour.meetingPointName || '',
       address: tour.meetingPointAddress || '',
@@ -79,7 +93,7 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
       id: m.id.toString(),
       type: m.mediaType.toLowerCase(),
       url: m.url,
-      caption: ''
+      caption: m.caption || ''
     })) || [],
     itinerary: tour.itinerary ? JSON.parse(tour.itinerary) : [],
     inclusions: tour.inclusions ? JSON.parse(tour.inclusions) : [],
@@ -95,12 +109,14 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
     tourType: tour.isRecurring ? 'recurring' : 'one-time',
     recurrencePattern: tour.recurrencePattern?.toLowerCase() || 'weekly',
     recurringDays: tour.recurringDays ? tour.recurringDays.split(',').map(d => d.trim().toLowerCase()) : [],
-    recurringUntil: tour.recurringUntil || undefined,
+    startDate: formatDateForInput(tour.startDate),
+    recurringUntil: formatDateForInput(tour.recurringUntil),
     recurringDates: tour.recurringDates ? JSON.parse(tour.recurringDates) : [],
     excludedDates: tour.excludedDates ? JSON.parse(tour.excludedDates) : [],
-    
-    // New fields
-    dynamicPricing: tour.dynamicPricing ? JSON.parse(tour.dynamicPricing) : { enabled: false },
+    dynamicPricing: tour.dynamicPricing ? JSON.parse(tour.dynamicPricing) : {
+      enabled: false,
+      weekendMultiplier: 1.2
+    },
     halalDetails: tour.halalDetails ? JSON.parse(tour.halalDetails) : {
       prayerSpace: false,
       halalFood: false,
@@ -108,7 +124,7 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
       mosqueVisits: false
     },
     isPremium: tour.isPremium || false,
-    isFamilyFriendly: tour.isFamilyFriendly !== undefined ? tour.isFamilyFriendly : true,
+    isFamilyFriendly: tour.isFamilyFriendly !== undefined ? tour.isFamilyFriendly : false,
     groupDiscountEnabled: tour.hasGroupDiscount || false,
     groupDiscountThreshold: tour.groupDiscountThreshold || 4,
     groupDiscountPercent: tour.groupDiscountPercent || 5,

@@ -31,16 +31,21 @@ public class GuideBookingResponse {
     private String tourTitle;
     private Instant startTimeUtc;
     private Instant endTimeUtc;
+    private Long tourId;               // template ID for navigation
 
     // ── Booking state ───────────────────────────────────────────────────────
 
     private String status;              // BookingStatus.name()
     private String bookingMode;         // BookingMode.name()
     private Integer peopleCount;
+    private Integer durationHours;
+    private Integer durationMinutes;
 
     // ── Pricing (guide can see payout context) ──────────────────────────────
-
+    
     private BigDecimal finalPrice;
+    private BigDecimal platformFee;
+    private BigDecimal netEarnings;
     private String currency;
 
     // ── Cancellation ────────────────────────────────────────────────────────

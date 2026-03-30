@@ -20,16 +20,22 @@ export type RecurrencePattern = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTO
 
 export type TourMediaType = 'IMAGE' | 'VIDEO'
 
+// BookingStatus — exact values returned by the backend.
+// IMPORTANT: 'Rejected' does NOT exist in the backend — it is a UI-only
+// display label. Map it from Cancelled bookings where cancellationReason
+// contains 'guide' (case-insensitive). Never send 'Rejected' to the backend.
 export enum BookingStatus {
   PendingPayment = 'PendingPayment',
-  PendingGuide = 'PendingGuide',
-  Confirmed = 'Confirmed',
-  InProgress = 'InProgress',
-  Completed = 'Completed',
-  Cancelled = 'Cancelled',
-  Waitlisted = 'Waitlisted',
-  Expired = 'Expired',
-  Rejected = 'Rejected' // Keeping rejected for UI fallback if needed, though backend uses Cancelled
+  PendingGuide   = 'PendingGuide',
+  Confirmed      = 'Confirmed',
+  InProgress     = 'InProgress',   // Guide has scanned QR / tapped check-in
+  Completed      = 'Completed',
+  Cancelled      = 'Cancelled',
+  Waitlisted     = 'Waitlisted',
+  Expired        = 'Expired',
+  // UI-only display alias — never sent to the backend.
+  // Derived from: status === 'Cancelled' && cancellationReason?.toLowerCase().includes('guide')
+  Rejected       = 'Rejected',
 }
 
 // ── Response types (match backend DTO fields exactly) ───────────────────────
@@ -39,6 +45,7 @@ export interface TourMediaResponse {
   mediaType: TourMediaType
   url: string
   displayOrder: number
+  caption?: string | null
 }
 
 export interface TourOccurrenceResponse {
@@ -50,6 +57,7 @@ export interface TourOccurrenceResponse {
   seatsReserved: number
   maxCapacity: number
   availableSeats: number
+  waitlistCount: number
   createdAtUtc: string
   updatedAtUtc: string
 }
@@ -149,9 +157,29 @@ export interface PublicTourCardResponse {
   hasGroupDiscount?: boolean
 }
 
+export interface PublicActiveBookingResponse {
+  id: number
+  status: string
+  occurrenceId: number
+  peopleCount: number
+  finalPrice: number
+  currency: string
+  startTime: string
+}
+
+export interface PublicActiveWaitlistResponse {
+  id: number
+  occurrenceId: number
+  peopleCount: number
+  position: number
+  createdAt: string
+}
+
 // Public tour detail — full info including media and occurrences
 export interface PublicTourDetailResponse {
   id: number
+  activeBookings?: PublicActiveBookingResponse[]
+  activeWaitlistEntries?: PublicActiveWaitlistResponse[]
   title: string
   description: string
   shortDescription: string | null
@@ -198,6 +226,8 @@ export interface PublicTourDetailResponse {
   isPremium?: boolean
   isFamilyFriendly?: boolean
   hasGroupDiscount?: boolean
+  groupDiscountThreshold?: number
+  groupDiscountPercent?: number
 }
 
 // Portfolio card — shown on guide's public profile
@@ -283,15 +313,18 @@ export interface BookingResponse {
   tourCoverImageUrl: string | null
   startTimeUtc: string
   endTimeUtc: string
-  meetingPointName: string | null
+  meetingPointName: string | null   // only populated for Confirmed/InProgress/Completed
   status: BookingStatus
-  bookingMode: string
+  bookingMode: 'Instant' | 'Request'
   peopleCount: number
   finalPrice: number
   currency: string
-  qrCode: string | null
+  qrCode: string | null             // UUID token — only present in traveler's own booking
   cancellationReason: string | null
-  refundPercent: number | null
+  refundPercent: number | null       // null until cancelled; backend computes from time window
+  cancelledAtUtc: string | null      // set when booking is cancelled
+  message: string | null             // traveler's note during booking
+  tourId: number                     // template ID for navigation
   createdAtUtc: string
 }
 
@@ -302,10 +335,19 @@ export interface GuideBookingResponse {
   startTimeUtc: string
   endTimeUtc: string
   status: BookingStatus
-  bookingMode: string
+  bookingMode: 'Instant' | 'Request'
   peopleCount: number
+  durationHours: number | null
+  durationMinutes: number | null
   finalPrice: number
+  platformFee?: number
+  netEarnings?: number
   currency: string
+  cancellationReason: string | null    // set if booking was cancelled or rejected
+  checkedInAtUtc: string | null        // set after guide QR check-in
+  completedAtUtc: string | null        // set after guide marks tour complete
+  message: string | null               // traveler's note during booking
+  tourId: number                       // template ID for navigation
   createdAtUtc: string
   traveler: {
     id: number
@@ -396,6 +438,13 @@ export interface UpdateTourTemplateRequest {
   halalFriendly?: boolean
   autoCancelIfMinNotMet?: boolean
   showInPortfolio?: boolean
+  isPremium?: boolean
+  isFamilyFriendly?: boolean
+  hasGroupDiscount?: boolean
+  groupDiscountThreshold?: number
+  groupDiscountPercent?: number
+  dynamicPricing?: string
+  halalDetails?: string
 }
 
 export interface CreateOccurrenceRequest {
@@ -413,6 +462,26 @@ export interface CreateBookingRequest {
   occurrenceId: number
   peopleCount: number
   waiverSigned: boolean
+  message?: string
+}
+
+// ── Waitlist ─────────────────────────────────────────────────────────────────
+
+// Represents one traveler's active waitlist entry for a full occurrence.
+// position is their rank in the queue — lower number = earlier promotion.
+// promoted entries are excluded from the list response (they already have a booking).
+export interface WaitlistResponse {
+  id: number
+  occurrenceId: number
+  tourTitle: string
+  startTimeUtc: string
+  endTimeUtc: string
+  position: number              // queue rank, 1 = next to be promoted
+  peopleCount: number           // seats requested
+  notified: boolean             // future notification card sets this
+  promoted: boolean             // true once a booking was auto-created
+  promotedAtUtc: string | null  // when promotion happened
+  createdAtUtc: string
 }
 
 // ── Public filter params ─────────────────────────────────────────────────────
@@ -451,4 +520,10 @@ export interface GetTourReviewsParams {
   tourId: number
   page?: number
   limit?: number
+}
+
+export interface UpdateBookingRequest {
+  occurrenceId: number
+  peopleCount: number
+  confirmWaitlistTransition?: boolean
 }

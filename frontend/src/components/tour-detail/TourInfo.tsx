@@ -27,8 +27,11 @@ import {
     Info,
     Globe,
     Tag,
-    Timer
+    Timer,
+    Zap
 } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { TourInfoProps } from '@/src/types/tour-detail.types'
 import { parseList, parseItinerary } from '@/src/lib/utils/tour-parser'
 
@@ -46,8 +49,12 @@ export default function TourInfo({
     tags,
     languages,
     durationHours,
-    durationMinutes
+    durationMinutes,
+    occurrences
 }: any) {
+    const searchParams = useSearchParams()
+    const selectedDateStr = searchParams.get('date')
+
     const inclusionList = parseList(inclusions)
     const exclusionList = parseList(exclusions)
     const requirementList = parseList(requirements)
@@ -58,18 +65,55 @@ export default function TourInfo({
     const tagList = Array.isArray(tags) ? tags : parseList(tags)
     const languageList = Array.isArray(languages) ? languages : parseList(languages)
 
+    // Dynamic duration calculation
+    let displayHours = durationHours
+    let displayMinutes = durationMinutes
+    let isOverridden = false
+
+    if (selectedDateStr && occurrences && occurrences.length > 0) {
+        const occ = occurrences.find((o: any) => (o.startTimeUtc === selectedDateStr || o.startTime === selectedDateStr))
+        if (occ) {
+            const start = new Date(occ.startTimeUtc || occ.startTime)
+            const end = new Date(occ.endTimeUtc || occ.endTime)
+            const diffMs = end.getTime() - start.getTime()
+            const totalMinutes = Math.floor(diffMs / (60 * 1000))
+            if (totalMinutes > 0) {
+                displayHours = Math.floor(totalMinutes / 60)
+                displayMinutes = totalMinutes % 60
+                isOverridden = true
+            }
+        }
+    }
+
     return (
         <div className="space-y-10">
             {/* Quick Specs / Tags & Languages */}
             <section className="flex flex-wrap gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
                 {/* Duration */}
-                {(durationHours > 0 || durationMinutes > 0) && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                        <Timer className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                            {durationHours > 0 && `${durationHours}h`} {durationMinutes > 0 && `${durationMinutes}m`}
-                        </span>
-                    </div>
+                {(displayHours > 0 || displayMinutes > 0) && (
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={`${displayHours}-${displayMinutes}`}
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-colors ${
+                                isOverridden 
+                                    ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700/50' 
+                                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/30'
+                            }`}
+                        >
+                            {isOverridden ? (
+                                <Zap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            ) : (
+                                <Timer className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            )}
+                            <span className={`text-sm font-bold ${isOverridden ? 'text-indigo-700 dark:text-indigo-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                                {displayHours > 0 && `${displayHours}h`} {displayMinutes > 0 && `${displayMinutes}m`}
+                                {isOverridden && <span className="ml-1 text-[10px] opacity-70 font-medium">(Selected Date)</span>}
+                            </span>
+                        </motion.div>
+                    </AnimatePresence>
                 )}
 
                 {/* Languages */}
@@ -83,18 +127,6 @@ export default function TourInfo({
                                 </span>
                             ))}
                         </div>
-                    </div>
-                )}
-
-                {/* Tags */}
-                {tagList.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                        {tagList.map((tag, i) => (
-                            <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors cursor-default">
-                                <Tag className="w-3 h-3" />
-                                {typeof tag === 'string' ? tag : (tag.name || JSON.stringify(tag))}
-                            </div>
-                        ))}
                     </div>
                 )}
             </section>
@@ -113,31 +145,30 @@ export default function TourInfo({
                 </div>
             </section>
 
+            <hr className="border-gray-100 dark:border-gray-800" />
+
             {/* ========================================
           HALAL CERTIFICATION DETAILS
           ======================================== */}
             {isHalalCertified && halalCertificationDetails && (
-                <section className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl">
-                    <div className="flex items-start gap-3">
-                        <div className="
-              w-10 h-10
-              bg-emerald-100 dark:bg-emerald-900/50
-              rounded-full
-              flex items-center justify-center
-              flex-shrink-0
-            ">
-                            <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <>
+                    <section className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-emerald-900 dark:text-emerald-100 mb-1">
+                                    Halal Travel Commitment
+                                </h3>
+                                <p className="text-sm text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                                    {halalCertificationDetails}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="font-bold text-emerald-900 dark:text-emerald-100 mb-1">
-                                Halal Travel Commitment
-                            </h3>
-                            <p className="text-sm text-emerald-700 dark:text-emerald-400 leading-relaxed">
-                                {halalCertificationDetails}
-                            </p>
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                    <hr className="border-gray-100 dark:border-gray-800" />
+                </>
             )}
 
             {/* ========================================
@@ -162,15 +193,7 @@ export default function TourInfo({
                             )}
 
                             {/* Order number */}
-                            <div className="
-                relative z-10
-                w-8 h-8
-                rounded-full
-                bg-blue-600 dark:bg-blue-500
-                text-white text-xs font-bold
-                flex items-center justify-center
-                flex-shrink-0
-              ">
+                            <div className="relative z-10 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                                 {index + 1}
                             </div>
 
@@ -198,6 +221,8 @@ export default function TourInfo({
                     ))}
                 </div>
             </section>
+
+            <hr className="border-gray-100 dark:border-gray-800" />
 
             {/* ========================================
           INCLUSIONS & EXCLUSIONS
@@ -235,6 +260,8 @@ export default function TourInfo({
                     </ul>
                 </div>
             </section>
+
+            <hr className="border-gray-100 dark:border-gray-800" />
 
             {/* ========================================
           REQUIREMENTS & WHAT TO BRING
@@ -276,6 +303,8 @@ export default function TourInfo({
                     </div>
                 )}
             </section>
+
+            <hr className="border-gray-100 dark:border-gray-800" />
 
             {/* ========================================
           MEETING POINT
@@ -325,6 +354,8 @@ export default function TourInfo({
                     </div>
                 </div>
             </section>
+
+            <hr className="border-gray-100 dark:border-gray-800" />
 
             {/* ========================================
           SAFETY MEASURES

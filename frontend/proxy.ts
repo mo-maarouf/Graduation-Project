@@ -8,7 +8,7 @@ const adminRoutes = ['/dashboard/admin'];
 const guideRoutes = ['/dashboard/guide'];
 const travelerRoutes = ['/dashboard/traveler'];
 
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if the route requires authentication

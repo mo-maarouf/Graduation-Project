@@ -34,6 +34,8 @@ apiClient.interceptors.request.use(
       return config;
     }
     const token = getAccessToken();
+    // Include token if available. Even for public endpoints, we want 
+    // the backend to know the user (e.g. to return activeBookingId).
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -59,6 +61,11 @@ apiClient.interceptors.response.use(
 
     // If error is not 401 or request already retried, reject
     if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    // If we have no token at all, it's a pure 401 (unauthorized), don't try to refresh
+    if (!getAccessToken()) {
       return Promise.reject(error);
     }
 

@@ -34,6 +34,7 @@ public class BookingResponse {
     private Instant startTimeUtc;
     private Instant endTimeUtc;
     private String meetingPointName;    // revealed to confirmed traveler only
+    private Long tourId;               // template ID for navigation
 
     // ── Booking state ───────────────────────────────────────────────────────
 
@@ -63,5 +64,6 @@ public class BookingResponse {
 
     // ── Timestamps ──────────────────────────────────────────────────────────
 
+    private Boolean waiverSigned;
     private Instant createdAtUtc;
 }

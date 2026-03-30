@@ -30,6 +30,7 @@ export default function SimilarTours({
     currentTourId,
     city,
     country,
+    category,
     limit = 4
 }: SimilarToursProps) {
     const [tours, setTours] = useState<PublicTourCardResponse[]>([])
@@ -39,36 +40,42 @@ export default function SimilarTours({
         const fetchSimilarTours = async () => {
             setIsLoading(true)
             try {
-                console.log(`[SimilarTours DEBUG] Primary search for city: "${city}"`)
-                // 1. Primary search: same city/locationName
+                console.log(`[SimilarTours DEBUG] Primary search for city: "${city}", category: "${category}"`)
+                // 1. Primary search: same city/locationName + category
                 let response = await getPublicTours({ 
-                    cities: city ? [city] : undefined
+                    cities: city ? [city] : undefined,
+                    category: category || undefined
                 })
                 
                 let filtered = (response.data || [])
                     .filter(t => t.id.toString() !== currentTourId)
 
-                // 2. Fallback: if no tours in same city, fetch any published tours
-                if (filtered.length === 0) {
-                    console.log('[SimilarTours DEBUG] No city matches found. Falling back to global search.')
-                    response = await getPublicTours({})
-                    filtered = (response.data || [])
-                        .filter(t => t.id.toString() !== currentTourId)
+                // 2. Fallback: if no tours in same city/category, fetch same city (any category)
+                if (filtered.length < limit) {
+                    console.log('[SimilarTours DEBUG] Fewer city/category matches found. Falling back to city-only search.')
+                    const cityOnlyResponse = await getPublicTours({ cities: city ? [city] : undefined })
+                    const cityOnlyTours = (cityOnlyResponse.data || [])
+                        .filter(t => t.id.toString() !== currentTourId && !filtered.some(f => f.id === t.id))
+                    filtered = [...filtered, ...cityOnlyTours]
                 }
                 
-                // 3. Last fallback: if still nothing, try searching by country/region if available
-                if (filtered.length === 0 && country) {
-                     console.log('[SimilarTours DEBUG] Falling back to country-wide search.')
-                     response = await getPublicTours({ regions: [country] }) 
-                     filtered = (response.data || [])
-                        .filter(t => t.id.toString() !== currentTourId)
+                // 3. Last fallback: if still nothing, try searching by category globally
+                if (filtered.length < limit) {
+                     console.log('[SimilarTours DEBUG] Falling back to global category-wide search.')
+                     const globalCatResponse = await getPublicTours({ category: category || undefined }) 
+                     const globalCatTours = (globalCatResponse.data || [])
+                        .filter(t => t.id.toString() !== currentTourId && !filtered.some(f => f.id === t.id))
+                     filtered = [...filtered, ...globalCatTours]
                 }
                 
                 const finalTours = filtered.slice(0, limit)
                 console.log(`[SimilarTours DEBUG] Found ${finalTours.length} tours to display.`)
                 setTours(finalTours)
-            } catch (error) {
-                console.error('[SimilarTours Fetch Error]:', error)
+            } catch (error: any) {
+                // If 401, ignore and just show nothing (don't break the page)
+                if (error?.response?.status !== 401) {
+                    console.error('[SimilarTours Fetch Error]:', error)
+                }
             } finally {
                 setIsLoading(false)
             }

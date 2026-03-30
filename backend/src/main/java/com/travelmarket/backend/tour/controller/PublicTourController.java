@@ -70,8 +70,11 @@ public class PublicTourController {
 
     /** Full detail for one published tour. */
     @GetMapping("/tours/{id}")
-    public PublicTourDetailResponse getTourDetail(@PathVariable Long id) {
-        return publicTourService.getTourDetail(id);
+    public PublicTourDetailResponse getTourDetail(
+            @PathVariable Long id,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails user) {
+        String email = user != null ? user.getUsername() : null;
+        return publicTourService.getTourDetail(id, email);
     }
 
     /**

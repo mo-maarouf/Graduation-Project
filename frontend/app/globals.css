@@ -470,3 +470,13 @@
 .tour-card:hover .tour-card-image {
   transform: scale(1.05);
 }
+
+/* 
+  SHIMMER ANIMATION
+  -----------------
+  Used in TourSearch.tsx and other loaders
+*/
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

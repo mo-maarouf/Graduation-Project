@@ -11,7 +11,8 @@
 
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -782,7 +783,7 @@ function BookingInfoCard({ booking }: BookingInfoCardProps) {
                         </div>
                         <div className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            {booking.peopleCount} people • ${booking.totalPrice}
+                            {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'} • ${booking.totalPrice}
                         </div>
                         {booking.meetingPoint && (
                             <div className="flex items-center gap-1">
@@ -906,10 +907,12 @@ function QuickReplyTemplates({ onSelect }: QuickReplyTemplatesProps) {
 // ============================================================================
 
 export default function TravelerMessagesPage() {
-    const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
-    const [showMobileList, setShowMobileList] = useState(true)
-    const [newMessage, setNewMessage] = useState('')
-    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [selectedConversation, setSelectedConversation] = React.useState<string | null>(null)
+    const [showMobileList, setShowMobileList] = React.useState(true)
+    const [newMessage, setNewMessage] = React.useState('')
+    const messagesEndRef = React.useRef<HTMLDivElement>(null)
+
+    useBadgeReset('traveler-messages')
 
     const currentConversation = selectedConversation
         ? MOCK_CONVERSATIONS.find(c => c.id === selectedConversation)
@@ -917,7 +920,7 @@ export default function TravelerMessagesPage() {
     const messages = selectedConversation ? MOCK_MESSAGES[selectedConversation] || [] : []
 
     // Scroll to bottom on new messages
-    useEffect(() => {
+    React.useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 

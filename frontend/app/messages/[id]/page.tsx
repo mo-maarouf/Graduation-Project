@@ -461,7 +461,7 @@ export default function MessageThreadPage() {
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                         <Users className="w-4 h-4" />
-                        <span>{conversation.booking.peopleCount} people • ${conversation.booking.totalPrice}</span>
+                        <span>{conversation.booking.peopleCount} {conversation.booking.peopleCount === 1 ? 'person' : 'people'} • ${conversation.booking.totalPrice}</span>
                       </div>
                       {conversation.booking.meetingPoint && (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">

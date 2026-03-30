@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -158,7 +159,7 @@ interface BookingCardProps {
 
 const BookingCard = ({ booking, onConfirm, onReject, isActionLoading }: BookingCardProps) => {
   const router = useRouter()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = React.useState(false)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -335,13 +336,15 @@ const BookingCard = ({ booking, onConfirm, onReject, isActionLoading }: BookingC
 // ============================================================================
 
 export default function GuideBookingsPage() {
-  const [bookings, setBookings] = useState<GuideBookingResponse[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isActionLoading, setIsActionLoading] = useState(false)
-  const [filterStatus, setFilterStatus] = useState<BookingStatus | 'all'>('all')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [bookings, setBookings] = React.useState<GuideBookingResponse[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isActionLoading, setIsActionLoading] = React.useState(false)
+  const [filterStatus, setFilterStatus] = React.useState<BookingStatus | 'all'>('all')
+  const [searchTerm, setSearchTerm] = React.useState('')
+  const [currentPage, setCurrentPage] = React.useState(1)
   const itemsPerPage = 10
+
+  useBadgeReset('guide-bookings')
 
   useEffect(() => {
     fetchBookings()
@@ -365,6 +368,7 @@ export default function GuideBookingsPage() {
     try {
       await confirmBooking(id)
       toast.success('Booking confirmed!')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       fetchBookings()
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to confirm booking')
@@ -379,6 +383,7 @@ export default function GuideBookingsPage() {
     try {
       await rejectBooking(id)
       toast.success('Booking rejected')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       fetchBookings()
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to reject booking')

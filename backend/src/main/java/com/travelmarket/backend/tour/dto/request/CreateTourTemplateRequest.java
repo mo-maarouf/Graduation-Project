@@ -82,9 +82,10 @@ public class CreateTourTemplateRequest {
     
     private java.time.Instant startDate;
 
-    private Boolean isRecurring = false;
+    @com.fasterxml.jackson.annotation.JsonProperty("isRecurring")
+    private Boolean recurring;
 
-    private RecurrencePattern recurrencePattern = RecurrencePattern.NONE;
+    private RecurrencePattern recurrencePattern;
 
     private String recurringDays;
 
@@ -92,19 +93,22 @@ public class CreateTourTemplateRequest {
     private String recurringDates;
     private String excludedDates;
 
-    private Boolean halalFriendly = false;
+    private Boolean halalFriendly;
 
     // Guide can disable the 48h auto-cancel safety net per tour
-    private Boolean autoCancelIfMinNotMet = true;
+    private Boolean autoCancelIfMinNotMet;
 
     // Guide can opt out of portfolio visibility on creation
-    private Boolean showInPortfolio = true;
+    private Boolean showInPortfolio;
 
     private String dynamicPricing;
     private String halalDetails;
 
-    private Boolean isPremium;
-    private Boolean isFamilyFriendly;
+    @com.fasterxml.jackson.annotation.JsonProperty("isPremium")
+    private Boolean premium;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isFamilyFriendly")
+    private Boolean familyFriendly;
     private Boolean hasGroupDiscount;
     private Integer groupDiscountThreshold;
     private java.math.BigDecimal groupDiscountPercent;

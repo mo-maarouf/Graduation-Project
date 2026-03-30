@@ -32,6 +32,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
 import Navigation from '@/src/components/layout/Navigation'
+import { getGuideBookings } from '@/src/lib/api/tours'
+import { BookingStatus } from '@/src/lib/types/tour.types'
 
 // ============================================================================
 // NAVIGATION ITEMS - COMPLETE LIST
@@ -47,8 +49,9 @@ const NAV_ITEMS = [
   { type: 'divider' as const },
   
   // Bookings & Messages
-  { href: '/dashboard/guide/bookings', label: 'Bookings', icon: Users, badge: 5 },
-  { href: '/dashboard/guide/messages', label: 'Messages', icon: MessageSquare, badge: 2 },
+  { href: '/dashboard/guide/bookings', label: 'Bookings', icon: Users, badgeKey: 'guide-bookings' as const },
+  { href: '/dashboard/guide/on-tour', label: 'Tour Toolkit', icon: Sparkles },
+  { href: '/dashboard/guide/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'guide-messages' as const },
   
   // Earnings
   { href: '/dashboard/guide/wallet', label: 'Wallet', icon: Wallet },
@@ -66,6 +69,7 @@ type NavItem = {
   href: string
   label: string
   icon: React.ElementType
+  badgeKey?: 'guide-bookings' | 'guide-messages'
   badge?: number
 }
 
@@ -148,6 +152,51 @@ export default function GuideDashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [badges, setBadges] = useState<Record<string, number>>({
+    'guide-bookings': 0,
+    'guide-messages': 2 // Keep mock 2 for now as messages aren't wired
+  })
+
+  // Fetch real counts
+  const fetchCounts = async () => {
+    try {
+      const res = await getGuideBookings()
+      const lastViewed = localStorage.getItem('safaribub-last-viewed-guide-bookings')
+      const lastViewedTime = lastViewed ? new Date(lastViewed).getTime() : 0
+
+      // Count all PENDING_GUIDE bookings
+      const unreadCount = res.data.filter(b => 
+        (b.status === BookingStatus.PendingGuide || b.status === 'PendingGuide' || b.status === 'PENDING_GUIDE')
+      ).length
+
+      setBadges(prev => ({ ...prev, 'guide-bookings': unreadCount }))
+    } catch (err) {
+      console.error('Failed to fetch guide badges:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (mounted) fetchCounts()
+    
+    // Listen for reset events from pages
+    const handleReset = (e: any) => {
+      const { category } = e.detail
+      if (category === 'guide-bookings' || category === 'guide-messages') {
+        setBadges(prev => ({ ...prev, [category]: 0 }))
+      }
+    }
+
+    // Listen for refresh events (re-fetch from server)
+    const handleRefresh = () => fetchCounts()
+
+    window.addEventListener('badge-reset', handleReset)
+    window.addEventListener('badge-refresh', handleRefresh)
+    
+    return () => {
+      window.removeEventListener('badge-reset', handleReset)
+      window.removeEventListener('badge-refresh', handleRefresh)
+    }
+  }, [mounted])
 
   // Role guard
   useEffect(() => {
@@ -237,7 +286,10 @@ export default function GuideDashboardLayout({
                 return (
                   <NavItemComponent
                     key={navItem.href}
-                    item={navItem}
+                    item={{
+                      ...navItem,
+                      badge: navItem.badgeKey ? badges[navItem.badgeKey] : undefined
+                    }}
                     isActive={pathname === navItem.href}
                     isCollapsed={isCollapsed}
                   />
@@ -344,9 +396,9 @@ export default function GuideDashboardLayout({
                           <Icon className="w-4 h-4" />
                           <span className="text-sm">{navItem.label}</span>
                         </div>
-                        {navItem.badge && (
+                        {navItem.badgeKey && badges[navItem.badgeKey] > 0 && (
                           <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full">
-                            {navItem.badge}
+                            {badges[navItem.badgeKey]}
                           </span>
                         )}
                       </Link>

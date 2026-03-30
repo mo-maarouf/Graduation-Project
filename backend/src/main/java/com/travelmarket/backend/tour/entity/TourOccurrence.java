@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -91,6 +92,15 @@ public class TourOccurrence {
     // Region retained from V1 (may differ from template region for special runs)
     @Column(length = 100)
     private String region;
+
+    @Column(name = "base_price", precision = 10, scale = 2)
+    private BigDecimal basePrice;
+
+    @Column(name = "capacity")
+    private Integer capacity;
+
+    @Column(name = "available_seats")
+    private Integer availableSeats;
 
     // ── Timestamps ─────────────────────────────────────────────────────────────
 

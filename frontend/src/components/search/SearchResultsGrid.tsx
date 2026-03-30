@@ -36,7 +36,8 @@ import {
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition } from '@headlessui/react'
 import { 
     useFilterState, 
-    useFilterDispatch 
+    useFilterDispatch,
+    useSidebarState
 } from '@/src/lib/contexts/FilterContext'
 import { 
     Country, 
@@ -162,12 +163,15 @@ export default function SearchResultsGrid({
     onFilterCountChange,
     activeFilterCount,
 }: SearchResultsGridProps) {
+    const { isCollapsed } = useSidebarState()
     const [tours, setTours] = useState<PublicTourCardResponse[]>([])
     const [guides, setGuides] = useState<PublicGuideProfile[]>([])
     const [loading, setLoading] = useState(true)
     const { filters } = useFilterState()
     const dispatch = useFilterDispatch()
     const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest')
+
+    const gridClasses = `grid grid-cols-1 sm:grid-cols-2 ${isCollapsed ? 'lg:grid-cols-3 xl:grid-cols-4' : 'xl:grid-cols-3'} gap-8`
 
     const sortOptions = [
         { id: 'newest', label: 'Newest First', icon: Clock },
@@ -246,7 +250,7 @@ export default function SearchResultsGrid({
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 py-8">
+            <div className={`${gridClasses} py-8`}>
                 {[...Array(6)].map((_, i) => (
                     <div key={i} className="aspect-[4/5] bg-gray-100 dark:bg-gray-800 rounded-[2rem] animate-pulse" />
                 ))}
@@ -383,7 +387,7 @@ export default function SearchResultsGrid({
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            <div className={gridClasses}>
                 {filteredTours.map(tour => (
                     <PublicTourCard key={tour.id} tour={tour} />
                 ))}

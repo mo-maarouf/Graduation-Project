@@ -58,7 +58,7 @@ const NAV_ITEMS = [
     href: '/dashboard/admin/verifications',
     icon: Shield,
     color: 'amber',
-    badgeKey: 'verifications'
+    badgeKey: 'admin-verifications'
   },
   {
     name: 'Users',
@@ -89,7 +89,7 @@ const NAV_ITEMS = [
     href: '/dashboard/admin/tours',
     icon: Globe,
     color: 'indigo',
-    badgeKey: 'tours'
+    badgeKey: 'admin-tours'
   },
   {
     name: 'Audit',
@@ -206,22 +206,43 @@ export default function AdminLayout({
   const [badges, setBadges] = useState<Record<string, number>>({})
 
   // Fetch real badges
+  const fetchBadges = async () => {
+    try {
+      const [verificationsRes, toursRes] = await Promise.all([
+        adminGetPendingVerifications(),
+        getAdminPendingTours()
+      ])
+
+      setBadges({
+        'admin-verifications': verificationsRes.length,
+        'admin-tours': toursRes.data.filter(t => t.status === 'PENDING_REVIEW').length
+      })
+    } catch (err) {
+      console.error('Failed to fetch admin badges:', err)
+    }
+  }
+
   useEffect(() => {
-    const fetchBadges = async () => {
-      try {
-        const [verificationsRes, toursRes] = await Promise.all([
-          adminGetPendingVerifications(),
-          getAdminPendingTours()
-        ])
-        setBadges({
-          verifications: verificationsRes.length,
-          tours: toursRes.data.length
-        })
-      } catch (err) {
-        console.error('Failed to fetch admin badges:', err)
+    if (mounted) fetchBadges()
+
+    // Listen for reset events (timestamp-based clearing)
+    const handleReset = (e: any) => {
+      const { category } = e.detail
+      if (category === 'admin-verifications' || category === 'admin-tours') {
+        setBadges(prev => ({ ...prev, [category]: 0 }))
       }
     }
-    if (mounted) fetchBadges()
+
+    // Listen for refresh events (re-fetch from server)
+    const handleRefresh = () => fetchBadges()
+
+    window.addEventListener('badge-reset', handleReset)
+    window.addEventListener('badge-refresh', handleRefresh)
+    
+    return () => {
+      window.removeEventListener('badge-reset', handleReset)
+      window.removeEventListener('badge-refresh', handleRefresh)
+    }
   }, [mounted])
 
   // Prevent hydration mismatch

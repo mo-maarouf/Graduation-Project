@@ -109,41 +109,37 @@ export default function PublicTourCard({ tour }: PublicTourCardProps) {
 
             {/* Content Section */}
             <div className="flex-1 p-6 flex flex-col">
-                <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    {tour.isPremium && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800/50 rounded-full text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400" title="Premium Tour">
-                            <Star className="w-3 h-3 fill-current" />
-                            <span>Premium</span>
-                        </div>
-                    )}
-                </div>
-
                 <div className="flex items-start justify-between gap-4 mb-3">
-                   <h3 className="text-2xl font-black text-gray-900 dark:text-white leading-tight tracking-tight mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                   <h3 className="text-xl font-black text-gray-900 dark:text-white leading-tight tracking-tight mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                     {tour.title}
                    </h3>
                 </div>
 
                 {/* Subtle Features Icons (Professional Approach) */}
                 <div className="flex items-center gap-3 mb-3">
+                    {tour.isPremium && (
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest" title="Premium Tour">
+                            <Star className="w-4 h-4 fill-current" />
+                        </div>
+                    )}
                     {tour.halalFriendly && (
                         <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest" title="Halal / Muslim Friendly">
-                            <MoonStar className="w-3.5 h-3.5" />
+                            <MoonStar className="w-4 h-4" />
                         </div>
                     )}
                     {tour.instantBook && (
                         <div className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest" title="Instant Confirmation">
-                            <TicketCheck className="w-3.5 h-3.5" />
+                            <TicketCheck className="w-4 h-4" />
                         </div>
                     )}
                     {tour.isFamilyFriendly && (
                         <div className="flex items-center gap-1 text-[11px] font-bold text-pink-600 dark:text-pink-500 uppercase tracking-widest" title="Family Friendly">
-                            <Baby className="w-3.5 h-3.5" />
+                            <Baby className="w-4 h-4" />
                         </div>
                     )}
                     {tour.hasGroupDiscount && (
                         <div className="flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-500 uppercase tracking-widest" title="Group Discounts Available">
-                            <BadgePercent className="w-3.5 h-3.5" />
+                            <BadgePercent className="w-4 h-4" />
                         </div>
                     )}
                 </div>
@@ -163,11 +159,11 @@ export default function PublicTourCard({ tour }: PublicTourCardProps) {
                             <User className="w-3.5 h-3.5 text-gray-400" />
                         )}
                     </div>
-                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate">
+                    <span className="text-sm font-bold text-gray-500 dark:text-gray-400 truncate">
                         {tour.guideDisplayName}
                     </span>
                     {tour.guideVerified && (
-                        <CheckCircle className="w-3 h-3 text-blue-500" />
+                        <CheckCircle className="w-3.5 h-3.5 text-blue-500" />
                     )}
                 </div>
 

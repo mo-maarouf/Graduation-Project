@@ -35,8 +35,8 @@ import java.util.List;
  *   GET    /api/guide/bookings/{id}                       getGuideBooking
  *   PUT    /api/guide/bookings/{id}/confirm               confirmBooking
  *   PUT    /api/guide/bookings/{id}/reject                rejectBooking
- *   POST   /api/guide/bookings/{id}/checkin               checkIn (dashboard tap)
  *   POST   /api/guide/bookings/checkin-by-qr/{qrToken}    checkInByQr (scanner flow)
+ *   POST   /api/guide/bookings/{id}/no-show              noShowBooking (traveler absent)
  *   POST   /api/guide/bookings/{id}/complete              completeBooking
  */
 @RestController
@@ -107,6 +107,20 @@ public class BookingController {
             @PathVariable Long id,
             @RequestBody(required = false) CancelBookingRequest request) {
         return bookingService.cancelBooking(user.getUsername(), id, request);
+    }
+
+    /**
+     * Update an existing booking (change people count or date).
+     *
+     * If capacity is exceeded, returns HTTP 409 unless confirmWaitlistTransition is true.
+     * If confirmed, the user is moved to the waitlist.
+     */
+    @PatchMapping("/traveler/bookings/{id}")
+    public BookingResponse updateBooking(
+            @AuthenticationPrincipal UserDetails user,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateBookingRequest request) {
+        return bookingService.updateBooking(user.getUsername(), id, request);
     }
 
     // ── Traveler: Waitlist ─────────────────────────────────────────────────────
@@ -201,17 +215,6 @@ public class BookingController {
 
     // ── Guide: QR Check-in & Completion ───────────────────────────────────────
 
-    /**
-     * Check-in via booking database id.
-     * Used when the guide taps a booking directly from their dashboard list.
-     * Transitions: CONFIRMED → IN_PROGRESS.
-     */
-    @PostMapping("/guide/bookings/{id}/checkin")
-    public GuideBookingResponse checkIn(
-            @AuthenticationPrincipal UserDetails user,
-            @PathVariable Long id) {
-        return bookingService.checkIn(user.getUsername(), id);
-    }
 
     /**
      * Check-in via the UUID QR token scanned from the traveler's QR code.
@@ -240,5 +243,18 @@ public class BookingController {
             @AuthenticationPrincipal UserDetails user,
             @PathVariable Long id) {
         return bookingService.completeBooking(user.getUsername(), id);
+    }
+
+    /**
+     * Mark a confirmed traveler as a no-show.
+     * Transitions: CONFIRMED → CANCELLED.
+     * Releases seats and triggers waitlist promotion.
+     */
+    @PostMapping("/guide/bookings/{id}/no-show")
+    public GuideBookingResponse noShowBooking(
+            @AuthenticationPrincipal UserDetails user,
+            @PathVariable Long id,
+            @RequestBody(required = false) RejectBookingRequest request) {
+        return bookingService.noShowBooking(user.getUsername(), id, request);
     }
 }

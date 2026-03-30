@@ -260,7 +260,11 @@ const TourCard = ({ tour, onAction }: { tour: TourTemplateResponse; onAction: (a
                   )}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Users className="w-3 h-3" />
+                  <Clock className="w-3 h-3 text-blue-500" />
+                  {tour.durationHours}h {tour.durationMinutes}m
+                </span>
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3 text-emerald-500" />
                   {tour.minCapacity}-{tour.maxCapacity} people
                 </span>
               </div>

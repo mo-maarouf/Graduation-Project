@@ -25,6 +25,7 @@ import { travelerGetProfile, TravelerProfileResponse } from '@/src/lib/api/trave
 import { getGreeting } from '@/src/lib/greeting'
 import OnboardingBannerWrapper from '@/src/components/dashboard/OnboardingBannerWrapper'
 import { toast } from 'react-hot-toast'
+import { getTravelerBookings, BookingResponse } from '@/src/lib/api/tours'
 
 // ============================================================================
 // PREMIUM COMPONENTS
@@ -81,22 +82,26 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any, label: strin
 export default function TravelerDashboardPage() {
     const { user } = useAuth()
     const [profile, setProfile] = useState<TravelerProfileResponse | null>(null)
+    const [bookings, setBookings] = useState<BookingResponse[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        async function fetchProfile() {
+        async function fetchData() {
             try {
-                const data = await travelerGetProfile()
-                setProfile(data)
+                const [profileData, bookingsData] = await Promise.all([
+                    travelerGetProfile(),
+                    getTravelerBookings()
+                ])
+                setProfile(profileData)
+                setBookings(bookingsData.data || [])
             } catch (error) {
-                console.error('Failed to fetch traveler profile:', error)
-                // Fallback to minimal data if profile fetch fails
+                console.error('Failed to fetch dashboard data:', error)
                 toast.error('Could not load detailed stats')
             } finally {
                 setLoading(false)
             }
         }
-        fetchProfile()
+        fetchData()
     }, [])
 
     if (loading) {
@@ -145,7 +150,7 @@ export default function TravelerDashboardPage() {
 
                             <div className="flex gap-3">
                                 <Link
-                                    href="/"
+                                    href="/tours"
                                     className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-3xl font-bold shadow-xl shadow-blue-500/30 transition-all flex items-center gap-3 group"
                                 >
                                     <Search className="w-5 h-5" />
@@ -178,7 +183,7 @@ export default function TravelerDashboardPage() {
                         <StatCard 
                             icon={TrendingUp} 
                             label="Weekly Streak" 
-                            value={profile?.streakCount || 0} 
+                            value={0} 
                             color="emerald" 
                         />
                         <StatCard 
@@ -206,21 +211,59 @@ export default function TravelerDashboardPage() {
                                     </Link>
                                 </div>
 
-                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800">
-                                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                        <Calendar className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                {bookings.filter(b => 
+                                    ['Confirmed', 'PendingGuide', 'InProgress'].includes(b.status)
+                                ).length > 0 ? (
+                                    <div className="space-y-4">
+                                        {bookings
+                                            .filter(b => ['Confirmed', 'PendingGuide', 'InProgress'].includes(b.status))
+                                            .slice(0, 1)
+                                            .map(booking => (
+                                                <div key={booking.id} className="p-6 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
+                                                            <Calendar className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900 dark:text-white">{booking.tourTitle}</h4>
+                                                            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
+                                                                <Clock className="w-4 h-4" />
+                                                                {new Date(booking.startTimeUtc).toLocaleDateString()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                            booking.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                            booking.status === 'InProgress' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                            'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                                        }`}>
+                                                            {booking.status}
+                                                        </span>
+                                                        <Link href={`/dashboard/traveler/bookings`} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                                            <ChevronRight className="w-4 h-4" />
+                                                        </Link>
+                                                    </div>
+                                                </div>
+                                            ))}
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No upcoming trips yet</h3>
-                                    <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-6 font-medium">
-                                        Your passport is feeling lonely. Browse our curated tours and book your next escape!
-                                    </p>
-                                    <Link 
-                                        href="/" 
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl text-sm font-black hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                    >
-                                        Explore Tours
-                                    </Link>
-                                </div>
+                                ) : (
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800">
+                                        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                            <Calendar className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No upcoming trips yet</h3>
+                                        <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-6 font-medium">
+                                            Your passport is feeling lonely. Browse our curated tours and book your next escape!
+                                        </p>
+                                        <Link 
+                                            href="/tours" 
+                                            className="inline-flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl text-sm font-black hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                        >
+                                            Explore Tours
+                                        </Link>
+                                    </div>
+                                )}
                             </GlassCard>
 
                             {/* SAVED TOURS / RECENT TRIPS */}

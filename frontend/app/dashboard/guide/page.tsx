@@ -220,7 +220,7 @@ export default function GuideDashboardPage() {
 
   const totalEarnings = bookings
     .filter(b => b.status === BookingStatus.Completed || b.status === BookingStatus.Confirmed)
-    .reduce((acc, b) => acc + b.finalPrice, 0)
+    .reduce((acc, b) => acc + Number(b.netEarnings || b.finalPrice), 0)
 
   const tourStats = {
     published: tours.filter(t => t.status === 'PUBLISHED').length,
@@ -342,7 +342,7 @@ export default function GuideDashboardPage() {
             />
             <StatCard 
               icon={Wallet} 
-              label="Total Volume" 
+              label="Net Earnings" 
               value={`$${totalEarnings.toFixed(2)}`} 
               color="emerald" 
             />
@@ -475,7 +475,7 @@ export default function GuideDashboardPage() {
                                   </span>
                                   <span className="text-xs font-bold text-blue-500 flex items-center gap-1">
                                     <Users className="w-3 h-3" />
-                                    {b.peopleCount} guests
+                                    {b.peopleCount} {b.peopleCount === 1 ? 'guest' : 'guests'}
                                   </span>
                                 </div>
                               </div>

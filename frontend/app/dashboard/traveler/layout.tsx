@@ -26,6 +26,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
 import Navigation from '@/src/components/layout/Navigation'
+import { getTravelerBookings } from '@/src/lib/api/tours'
+import { BookingStatus } from '@/src/lib/types/tour.types'
 
 // ============================================================================
 // NAVIGATION ITEMS - COMPLETE LIST
@@ -34,9 +36,9 @@ import Navigation from '@/src/components/layout/Navigation'
 const NAV_ITEMS = [
   // Primary
   { href: '/dashboard/traveler', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/traveler/bookings', label: 'My Bookings', icon: Calendar },
+  { href: '/dashboard/traveler/bookings', label: 'My Bookings', icon: Calendar, badgeKey: 'traveler-bookings' as const },
   { href: '/dashboard/traveler/wishlist', label: 'Wishlist', icon: Heart },
-  { href: '/dashboard/traveler/messages', label: 'Messages', icon: MessageSquare, badge: 3 },
+  { href: '/dashboard/traveler/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'traveler-messages' as const },
   
   // Divider - visual only
   { type: 'divider' as const },
@@ -50,6 +52,7 @@ type NavItem = {
   href: string
   label: string
   icon: React.ElementType
+  badgeKey?: 'traveler-bookings' | 'traveler-messages'
   badge?: number
 }
 
@@ -132,6 +135,44 @@ export default function TravelerDashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [badges, setBadges] = useState<Record<string, number>>({
+    'traveler-bookings': 0,
+    'traveler-messages': 3 // Mock 3 for now
+  })
+
+  // Fetch real counts
+  const fetchCounts = async () => {
+    try {
+      const res = await getTravelerBookings()
+      const lastViewed = localStorage.getItem('safaribub-last-viewed-traveler-bookings')
+      const lastViewedTime = lastViewed ? new Date(lastViewed).getTime() : 0
+
+      // Count only CONFIRMED bookings created AFTER the last visit
+      const unreadCount = res.data.filter(b => 
+        b.status === BookingStatus.Confirmed && 
+        new Date(b.createdAtUtc).getTime() > lastViewedTime
+      ).length
+
+      setBadges(prev => ({ ...prev, 'traveler-bookings': unreadCount }))
+    } catch (err) {
+      console.error('Failed to fetch traveler badges:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (mounted) fetchCounts()
+    
+    // Listen for reset events
+    const handleReset = (e: any) => {
+      const { category } = e.detail
+      if (category === 'traveler-bookings' || category === 'traveler-messages') {
+        setBadges(prev => ({ ...prev, [category]: 0 }))
+      }
+    }
+
+    window.addEventListener('badge-reset', handleReset)
+    return () => window.removeEventListener('badge-reset', handleReset)
+  }, [mounted])
 
   // Role guard
   useEffect(() => {
@@ -221,7 +262,10 @@ export default function TravelerDashboardLayout({
                 return (
                   <NavItemComponent
                     key={navItem.href}
-                    item={navItem}
+                    item={{
+                      ...navItem,
+                      badge: navItem.badgeKey ? badges[navItem.badgeKey] : undefined
+                    }}
                     isActive={pathname === navItem.href}
                     isCollapsed={isCollapsed}
                   />
@@ -328,9 +372,9 @@ export default function TravelerDashboardLayout({
                           <Icon className="w-4 h-4" />
                           <span className="text-sm">{navItem.label}</span>
                         </div>
-                        {navItem.badge && (
+                        {navItem.badgeKey && badges[navItem.badgeKey] > 0 && (
                           <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full">
-                            {navItem.badge}
+                            {badges[navItem.badgeKey]}
                           </span>
                         )}
                       </Link>

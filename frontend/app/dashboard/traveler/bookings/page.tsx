@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { getTravelerBookings, cancelBooking } from '@/src/lib/api/tours'
-import { BookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
+import { getTravelerBookings, cancelBooking, getMyWaitlist, leaveWaitlist } from '@/src/lib/api/tours'
+import { BookingResponse, BookingStatus, WaitlistResponse } from '@/src/lib/types/tour.types'
 import {
     Calendar,
     Clock,
@@ -22,6 +23,7 @@ import {
     Download,
     Star,
     User,
+    Smartphone,
     RefreshCw
 } from 'lucide-react'
 
@@ -132,7 +134,8 @@ function FilterBar({ activeFilter, onFilterChange, searchQuery, onSearchChange }
         { id: 'upcoming', label: 'Upcoming' },
         { id: 'completed', label: 'Completed' },
         { id: 'cancelled', label: 'Cancelled' },
-        { id: 'pending', label: 'Pending Request' }
+        { id: 'pending', label: 'Pending Request' },
+        { id: 'waitlist', label: 'Waitlist' }
     ]
 
     return (
@@ -207,7 +210,7 @@ function CancellationModal({ booking, isOpen, onClose, onConfirm, isLoading = fa
     const refundAmount = (booking.finalPrice * refundPercent) / 100
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 {/* Header */}
                 <div className="p-6 border-b border-gray-200 dark:border-gray-800">
@@ -260,7 +263,7 @@ function CancellationModal({ booking, isOpen, onClose, onConfirm, isLoading = fa
                     <button
                         onClick={onClose}
                         disabled={isLoading}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-20:0 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
                     >
                         Go Back
                     </button>
@@ -354,14 +357,35 @@ function BookingCard({ booking, onCancel }: BookingCardProps) {
                         </div>
                     </div>
 
-                    {/* Reference */}
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Reference
+                    {/* Reference & Ticket Code */}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Reference
+                            </div>
+                            <span className="text-xs font-mono font-bold text-gray-900 dark:text-gray-300">
+                                SH-{booking.id.toString().padStart(4, '0')}
+                            </span>
                         </div>
-                        <span className="text-xs font-mono font-medium text-gray-900 dark:text-gray-300">
-                            SH-{booking.id.toString().padStart(4, '0')}
-                        </span>
+
+                        {booking.qrCode && booking.status === BookingStatus.Confirmed && (
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(booking.qrCode || "");
+                                    toast.success('Ticket code copied for guide!', {
+                                        icon: '🎫',
+                                        style: { borderRadius: '12px', background: '#333', color: '#fff' }
+                                    });
+                                }}
+                                className="group flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-all active:scale-95"
+                                title="Copy code for guide"
+                            >
+                                <p className="text-lg font-mono font-bold tracking-tight">
+                                    SH-{booking.id.toString().padStart(6, '0')}
+                                </p>
+                                <Smartphone className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Action buttons */}
@@ -404,6 +428,18 @@ function BookingCard({ booking, onCancel }: BookingCardProps) {
                             </button>
                         )}
 
+                        {booking.status !== BookingStatus.Completed && 
+                         booking.status !== BookingStatus.Cancelled && 
+                         booking.status !== BookingStatus.Expired && (
+                            <Link
+                                href={`/tours/${booking.tourId}`}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-all active:scale-95 transition-all"
+                            >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Edit
+                            </Link>
+                        )}
+
                         <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 text-xs font-bold rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all ml-auto active:scale-95">
                             <Download className="w-3.5 h-3.5" />
                             Invoice
@@ -420,23 +456,32 @@ function BookingCard({ booking, onCancel }: BookingCardProps) {
 // ============================================================================
 
 export default function TravelerBookingsPage() {
-    const [bookings, setBookings] = useState<BookingResponse[]>([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [isCancelling, setIsCancelling] = useState(false)
-    const [activeFilter, setActiveFilter] = useState('all')
-    const [searchQuery, setSearchQuery] = useState('')
-    const [selectedBooking, setSelectedBooking] = useState<BookingResponse | null>(null)
-    const [showCancelModal, setShowCancelModal] = useState(false)
+    const [bookings, setBookings] = React.useState<BookingResponse[]>([])
+    const [waitlistEntries, setWaitlistEntries] = React.useState<WaitlistResponse[]>([])
+    const [isLoading, setIsLoading] = React.useState(true)
+    const [isCancelling, setIsCancelling] = React.useState(false)
+    const [isLeavingWaitlist, setIsLeavingWaitlist] = React.useState<number | null>(null)
 
-    useEffect(() => {
+    useBadgeReset('traveler-bookings')
+    const [activeFilter, setActiveFilter] = React.useState('all')
+    const [searchQuery, setSearchQuery] = React.useState('')
+    const [selectedBooking, setSelectedBooking] = React.useState<BookingResponse | null>(null)
+    const [showCancelModal, setShowCancelModal] = React.useState(false)
+
+    React.useEffect(() => {
         fetchBookings()
     }, [])
 
     const fetchBookings = async () => {
         setIsLoading(true)
         try {
-            const res = await getTravelerBookings()
-            setBookings(res.data || [])
+            // Fetch bookings and waitlist entries in parallel
+            const [bookingsRes, waitlistRes] = await Promise.all([
+                getTravelerBookings(),
+                getMyWaitlist().catch(() => ({ data: [] as WaitlistResponse[] }))
+            ])
+            setBookings(bookingsRes.data || [])
+            setWaitlistEntries(waitlistRes.data || [])
         } catch (err: any) {
             console.error('Failed to fetch bookings:', err)
             toast.error('Failed to load your bookings')
@@ -496,6 +541,20 @@ export default function TravelerBookingsPage() {
         }
     }
 
+    // Leave waitlist — cancels the traveler's waitlist entry
+    const handleLeaveWaitlist = async (waitlistId: number) => {
+        setIsLeavingWaitlist(waitlistId)
+        try {
+            await leaveWaitlist(waitlistId)
+            toast.success('Removed from waitlist')
+            fetchBookings() // Refresh both bookings and waitlist
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to leave waitlist')
+        } finally {
+            setIsLeavingWaitlist(null)
+        }
+    }
+
     if (isLoading && bookings.length === 0) {
         return (
             <div className="pt-24 flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -549,8 +608,65 @@ export default function TravelerBookingsPage() {
                         onSearchChange={setSearchQuery}
                     />
 
-                    {/* Bookings List */}
-                    {filteredBookings.length > 0 ? (
+                    {/* Waitlist Entries — shown when filter is 'waitlist' or 'all' */}
+                    {(activeFilter === 'waitlist' || activeFilter === 'all') && waitlistEntries.length > 0 && (
+                        <div className="mb-8">
+                            {activeFilter === 'all' && (
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <Clock className="w-5 h-5 text-purple-500" />
+                                    Waitlist ({waitlistEntries.length})
+                                </h2>
+                            )}
+                            <div className="grid gap-4">
+                                {waitlistEntries.map((entry) => (
+                                    <div
+                                        key={entry.id}
+                                        className="bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-800/50 rounded-xl p-5 hover:shadow-lg transition-all duration-300"
+                                    >
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800">
+                                                        <Clock className="w-3 h-3" />
+                                                        Waitlisted
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">#{entry.position} in queue</span>
+                                                </div>
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                    {entry.tourTitle || `Occurrence #${entry.occurrenceId}`}
+                                                </h3>
+                                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    <span className="flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        {entry.peopleCount} {entry.peopleCount === 1 ? 'person' : 'people'}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="w-3 h-3" />
+                                                        Joined {new Date(entry.createdAtUtc).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleLeaveWaitlist(entry.id)}
+                                                disabled={isLeavingWaitlist === entry.id}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 disabled:opacity-50"
+                                            >
+                                                {isLeavingWaitlist === entry.id ? (
+                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                )}
+                                                Leave Waitlist
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bookings List — hidden when filter is 'waitlist' */}
+                    {activeFilter !== 'waitlist' && filteredBookings.length > 0 && (
                         <div className="grid gap-6">
                             {filteredBookings.map((booking) => (
                                 <BookingCard
@@ -560,7 +676,10 @@ export default function TravelerBookingsPage() {
                                 />
                             ))}
                         </div>
-                    ) : (
+                    )}
+
+                    {/* Empty State — show when no results in active filter */}
+                    {activeFilter !== 'waitlist' && filteredBookings.length === 0 && (
                         <div className="text-center py-24 bg-white dark:bg-gray-900 rounded-3xl border border-gray-200/50 dark:border-gray-800/50 shadow-xl overflow-hidden relative">
                             {/* Decorative elements */}
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-50" />
@@ -590,13 +709,30 @@ export default function TravelerBookingsPage() {
                         </div>
                     )}
 
+                    {/* Waitlist empty state */}
+                    {activeFilter === 'waitlist' && waitlistEntries.length === 0 && (
+                        <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+                            <Clock className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Waitlist Entries</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">You&apos;re not on any waitlists right now.</p>
+                        </div>
+                    )}
+
                     {/* Summary Stats */}
                     <div className="mt-16 grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                         {[
                             { label: 'Total Bookings', value: bookings.length, color: 'text-gray-900 dark:text-white', bg: 'bg-white dark:bg-gray-900' },
                             { label: 'Upcoming', value: bookings.filter(b => b.status === BookingStatus.Confirmed || b.status === BookingStatus.PendingGuide).length, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50/50 dark:bg-emerald-900/10' },
                             { label: 'Completed', value: bookings.filter(b => b.status === BookingStatus.Completed).length, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50/50 dark:bg-blue-900/10' },
-                            { label: 'Total Spend', value: `${bookings[0]?.currency || 'USD'} ${bookings.reduce((sum, b) => sum + b.finalPrice, 0).toFixed(0)}`, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50/50 dark:bg-amber-900/10' }
+                            { 
+                                label: 'Total Spend', 
+                                value: `${bookings[0]?.currency || 'USD'} ${bookings
+                                    .filter(b => [BookingStatus.Confirmed, BookingStatus.Completed, BookingStatus.InProgress].includes(b.status))
+                                    .reduce((sum, b) => sum + Number(b.finalPrice), 0)
+                                    .toFixed(0)}`, 
+                                color: 'text-amber-600 dark:text-amber-400', 
+                                bg: 'bg-amber-50/50 dark:bg-amber-900/10' 
+                            }
                         ].map((stat, i) => (
                             <div key={i} className={`p-6 ${stat.bg} border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm hover:translate-y-[-4px] transition-all duration-300 group`}>
                                 <div className={`text-3xl font-black ${stat.color} group-hover:scale-110 transition-transform origin-left`}>

@@ -19,7 +19,8 @@ import {
     User,
     ShieldCheck,
     Info,
-    CheckCircle
+    CheckCircle,
+    Smartphone
 } from 'lucide-react'
 
 export default function TicketPage({ params }: { params: Promise<{ id: string }> }) {
@@ -152,9 +153,22 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
                                 />
                             </div>
                             <p className="text-[10px] uppercase font-black text-gray-400 tracking-[0.3em] mb-1">Check-in QR Code</p>
-                            <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
-                                SH-{booking.id.toString().padStart(6, '0')}
-                            </p>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(booking.qrCode || "");
+                                    toast.success('Ticket code copied for guide!', {
+                                        icon: '🎫',
+                                        style: { borderRadius: '12px', background: '#333', color: '#fff' }
+                                    });
+                                }}
+                                className="group flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-all active:scale-95"
+                                title="Copy code for guide"
+                            >
+                                <p className="text-lg font-mono font-bold tracking-tight">
+                                    SH-{booking.id.toString().padStart(6, '0')}
+                                </p>
+                                <Smartphone className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </button>
                         </div>
 
                         {/* Details Grid */}

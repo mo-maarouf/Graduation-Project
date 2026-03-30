@@ -45,6 +45,7 @@ import { ChevronLeft } from 'lucide-react'
 import BookingCardWrapper from '@/src/components/tour-detail/BookingCardWrapper'
 import CinematicBackground from '@/src/components/layout/CinematicBackground'
 import { parseItinerary, parseList } from '@/src/lib/utils/tour-parser'
+import { Suspense } from 'react'
 // ============================================================================
 // DYNAMIC METADATA - SEO CRITICAL
 // ============================================================================
@@ -158,6 +159,7 @@ export default async function TourDetailPage({ params}:PageProps ) {
         id: m.id.toString(),
         type: (m.mediaType || 'IMAGE').toLowerCase() as 'image' | 'video',
         url: m.url,
+        caption: m.caption,
         displayOrder: m.displayOrder || 0
     }))
 
@@ -180,7 +182,8 @@ export default async function TourDetailPage({ params}:PageProps ) {
                     Back to all tours
                 </Link>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <Suspense fallback={<div className="h-96 flex items-center justify-center font-black animate-pulse text-gray-400">LOADING TOUR...</div>}>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column: Content */}
                     <div className="lg:col-span-2 space-y-8">
                         <TourHero
@@ -220,6 +223,7 @@ export default async function TourDetailPage({ params}:PageProps ) {
                             languages={tourLanguages}
                             durationHours={tour.durationHours}
                             durationMinutes={tour.durationMinutes}
+                            occurrences={tour.occurrences}
                         />
 
                         <TourGuide
@@ -252,12 +256,19 @@ export default async function TourDetailPage({ params}:PageProps ) {
                                 maxCapacity={tour.maxCapacity}
                                 bookingMode={normalizedBookingMode}
                                 occurrences={tour.occurrences || []}
-                                waitlistCount={0}
-                                isWaitlistAvailable={false}
+                                waitlistCount={tour.occurrences?.[0]?.waitlistCount || 0}
+                                isWaitlistAvailable={true} // Allow waitlist whenever a specific occurrence cannot accommodate the group
+                                hasGroupDiscount={tour.hasGroupDiscount}
+                                groupDiscountThreshold={tour.groupDiscountThreshold}
+                                groupDiscountPercent={tour.groupDiscountPercent}
+                                activeBookingId={tour.activeBookingId}
+                                activeBookingOccurrenceId={tour.activeBookingOccurrenceId}
+                                activeBookingPeopleCount={tour.activeBookingPeopleCount}
                             />
                         </div>
                     </div>
                 </div>
+                </Suspense>
 
                 {/* Similar Tours */}
                 <div className="mt-16 pt-8 border-t border-gray-100 dark:border-gray-900">
@@ -265,6 +276,7 @@ export default async function TourDetailPage({ params}:PageProps ) {
                         currentTourId={tour.id.toString()}
                         city={tour.locationName as any}
                         country={tour.countryCode as any}
+                        category={tour.category || undefined}
                     />
                 </div>
             </div>

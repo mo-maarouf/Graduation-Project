@@ -31,6 +31,7 @@ public class TourMapper {
         r.setMediaType(media.getMediaType() != null ? media.getMediaType().name() : null);
         r.setUrl(media.getUrl());
         r.setDisplayOrder(media.getDisplayOrder());
+        r.setCaption(media.getCaption());
         return r;
     }
 
@@ -60,6 +61,7 @@ public class TourMapper {
             int reserved = o.getSeatsReserved() != null ? o.getSeatsReserved() : 0;
             r.setMaxCapacity(max);
             r.setAvailableSeats(Math.max(0, max - reserved));
+            r.setWaitlistCount(o.getWaitlistCount());
         }
         return r;
     }

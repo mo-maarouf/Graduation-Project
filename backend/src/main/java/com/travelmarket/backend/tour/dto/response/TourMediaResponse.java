@@ -8,4 +8,5 @@ public class TourMediaResponse {
     private String mediaType;   // "IMAGE" or "VIDEO"
     private String url;
     private Integer displayOrder;
-}
+    private String caption;
+}

@@ -71,16 +71,14 @@ export default function TourHero({
     const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video'>('all')
 
     // Unify main image into the gallery for seamless switching and deduplicate by URL
+    // Ensure we preserve the caption if the mainImage matches an item in the gallery
     const fullGallery: TourMedia[] = [
-        { id: 'main', type: (isVideoUrl(mainImage) ? 'video' : 'image') as 'image' | 'video', url: mainImage, displayOrder: 0 },
-        ...(gallery || [])
-    ].reduce((acc: TourMedia[], current) => {
-        const isDuplicate = acc.some(item => item.url === current.url)
-        if (!isDuplicate) {
-            acc.push(current)
-        }
-        return acc
-    }, []).sort((a, b) => a.displayOrder - b.displayOrder)
+        ...(gallery || []),
+        // Only add mainImage if it's not already in the gallery
+        ...(gallery?.some(m => m.url === mainImage) 
+            ? [] 
+            : [{ id: 'main', type: (isVideoUrl(mainImage) ? 'video' : 'image') as 'image' | 'video', url: mainImage, displayOrder: -1 }])
+    ].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
 
     const activeMedia = fullGallery[activeMediaIndex]
 
@@ -157,6 +155,15 @@ export default function TourHero({
                         />
                     )}
 
+                    {/* Caption Overlay (Main View) */}
+                    {activeMedia?.caption && (
+                        <div className="absolute bottom-4 left-4 right-4 z-[5] pointer-events-none">
+                            <p className="text-white text-sm font-medium drop-shadow-md">
+                                {activeMedia.caption}
+                            </p>
+                        </div>
+                    )}
+
                     {/* Gradient overlay for text readability (only if image) */}
                     {activeMedia?.type !== 'video' && (
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none z-[1]" />
@@ -206,16 +213,7 @@ export default function TourHero({
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={(e) => { e.stopPropagation(); openGallery(activeMediaIndex) }}
-                        className="
-                            w-10 h-10
-                            bg-white/95 dark:bg-gray-900/95
-                            backdrop-blur-sm
-                            rounded-full
-                            flex items-center justify-center
-                            hover:bg-white dark:hover:bg-gray-900
-                            transition-all
-                            shadow-lg
-                        "
+                        className="w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white dark:hover:bg-gray-900 transition-all shadow-lg"
                         aria-label="View fullscreen"
                     >
                         <Maximize className="w-5 h-5 text-gray-700 dark:text-gray-300" />
@@ -226,27 +224,11 @@ export default function TourHero({
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={(e) => { e.stopPropagation(); toggleFavorite(id) }}
-                        className="
-                w-10 h-10
-                bg-white/95 dark:bg-gray-900/95
-                backdrop-blur-sm
-                rounded-full
-                flex items-center justify-center
-                hover:bg-white dark:hover:bg-gray-900
-                transition-all
-                shadow-lg
-              "
+                        className="w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white dark:hover:bg-gray-900 transition-all shadow-lg"
                         aria-label={isSaved ? 'Remove from wishlist' : 'Save to wishlist'}
                     >
                         <Heart
-                            className={`
-                  w-5 h-5
-                  transition-colors
-                  ${isSaved
-                                    ? 'fill-red-500 text-red-500'
-                                    : 'text-gray-700 dark:text-gray-300'
-                                }
-                `}
+                            className={`w-5 h-5 transition-colors ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-700 dark:text-gray-300'}`}
                         />
                     </motion.button>
 
@@ -415,82 +397,72 @@ export default function TourHero({
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Booking mode badge */}
                     <motion.span 
-                        whileHover={{ scale: 1.02 }}
-                        className={`
-                            inline-flex items-center gap-2
-                            px-3 py-1.5
-                            rounded-full
-                            text-[10px] font-black uppercase tracking-[0.1em]
-                            shadow-sm transition-all
-                            ${bookingMode === BookingMode.INSTANT
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50'
-                                : 'bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-gray-800'
-                            }
-                        `}
+                        whileHover={{ scale: 1.05 }}
+                        className={`inline-flex items-center justify-center w-10 h-10 rounded-xl shadow-sm transition-all ${bookingMode === BookingMode.INSTANT ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-gray-800'}`}
+                        title={bookingMode === BookingMode.INSTANT ? 'Instant Confirmation' : 'Request to Book'}
                     >
                         {bookingMode === BookingMode.INSTANT ? (
-                            <TicketCheck className="w-3.5 h-3.5" />
+                            <TicketCheck className="w-6 h-6" />
                         ) : (
-                            <Clock className="w-3.5 h-3.5" />
+                            <Clock className="w-6 h-6" />
                         )}
-                        <span>
-                            {bookingMode === BookingMode.INSTANT ? 'Instant Confirmation' : 'Request to Book'}
-                        </span>
                     </motion.span>
 
                     {/* Halal certified badge */}
                     {isHalalCertified && (
                         <motion.span 
-                            whileHover={{ scale: 1.02 }}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/50 rounded-full text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-emerald-600 dark:text-emerald-400 transition-all"
+                            whileHover={{ scale: 1.05 }}
+                            className="inline-flex items-center justify-center w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/50 rounded-xl shadow-sm text-emerald-600 dark:text-emerald-400 transition-all"
+                            title="Halal Certified"
                         >
-                            <MoonStar className="w-3.5 h-3.5 fill-current" />
-                            <span>Halal Certified</span>
+                            <MoonStar className="w-6 h-6 fill-current" />
                         </motion.span>
                     )}
 
                     {/* Premium badge */}
                     {isPremium && (
                         <motion.span 
-                            whileHover={{ scale: 1.02 }}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800/50 rounded-full text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-amber-600 dark:text-amber-400 transition-all"
+                            whileHover={{ scale: 1.05 }}
+                            className="inline-flex items-center justify-center w-10 h-10 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800/50 rounded-xl shadow-sm text-amber-600 dark:text-amber-400 transition-all"
+                            title="Premium Tour"
                         >
-                            <Star className="w-3.5 h-3.5 fill-current" />
-                            <span>Premium</span>
+                            <Star className="w-6 h-6 fill-current" />
                         </motion.span>
                     )}
 
                     {/* Family Friendly badge */}
                     {isFamilyFriendly && (
                         <motion.span 
-                            whileHover={{ scale: 1.02 }}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-50 dark:bg-pink-950/30 border border-pink-100 dark:border-pink-800/50 rounded-full text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-pink-600 dark:text-pink-400 transition-all"
+                            whileHover={{ scale: 1.05 }}
+                            className="inline-flex items-center justify-center w-10 h-10 bg-pink-50 dark:bg-pink-950/30 border border-pink-100 dark:border-pink-800/50 rounded-xl shadow-sm text-pink-600 dark:text-pink-400 transition-all"
+                            title="Family Friendly"
                         >
-                            <Baby className="w-3.5 h-3.5" />
-                            <span>Family Friendly</span>
+                            <Baby className="w-6 h-6" />
                         </motion.span>
                     )}
 
                     {/* Group Discount badge */}
                     {hasGroupDiscount && (
                         <motion.span 
-                            whileHover={{ scale: 1.02 }}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-800/50 rounded-full text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-purple-600 dark:text-purple-400 transition-all"
+                            whileHover={{ scale: 1.05 }}
+                            className="inline-flex items-center justify-center w-10 h-10 bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-800/50 rounded-xl shadow-sm text-purple-600 dark:text-purple-400 transition-all"
+                            title="Group Discount"
                         >
-                            <BadgePercent className="w-3.5 h-3.5" />
-                            <span>Group Discount</span>
+                            <BadgePercent className="w-6 h-6" />
                         </motion.span>
                     )}
 
                     {/* Status Badge (Special states) */}
                     {status && status !== TourStatus.SCHEDULED && status !== TourStatus.CONFIRMED && (
-                        <span className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800/50 rounded-full text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-amber-600 dark:text-amber-400">
+                        <span 
+                            className="px-3 h-10 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800/50 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] shadow-sm text-amber-600 dark:text-amber-400"
+                        >
                             {status.replace('_', ' ')}
                         </span>
                     )}
                 </div>
                 <h1 className="
-          text-3xl sm:text-4xl lg:text-5xl
+          text-2xl sm:text-3xl lg:text-4xl
           font-black tracking-tight
           text-gray-900 dark:text-white
           leading-tight
@@ -511,12 +483,6 @@ export default function TourHero({
                             ({totalReviews.toLocaleString()} reviews)
                         </span>
                     </Link>
-
-                    {/* Verified badge */}
-                    <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                        <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span>Verified tour</span>
-                    </span>
 
                     {/* Location with map link */}
                     <Link
@@ -589,6 +555,14 @@ export default function TourHero({
                                         className="object-contain"
                                         priority
                                     />
+                                    {/* Lightbox Caption */}
+                                    {activeMedia.caption && (
+                                        <div className="absolute bottom-6 left-0 right-0 text-center px-6">
+                                            <p className="text-white text-lg font-medium drop-shadow-lg">
+                                                {activeMedia.caption}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </motion.div>

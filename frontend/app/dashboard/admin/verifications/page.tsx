@@ -32,6 +32,7 @@ import {
   adminRejectVerification,
   GuideProfileResponse 
 } from '@/src/lib/api/admin'
+import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import { toast } from 'react-hot-toast'
 
 // ==================== HELPERS ====================
@@ -77,17 +78,19 @@ const StatusBadge = ({ status }: { status: string }) => {
 // ==================== PAGE COMPONENT ====================
 
 export default function AdminVerificationQueuePage() {
-  const [activeTab, setActiveTab] = useState<'pending' | 'rejected'>('pending')
-  const [verifications, setVerifications] = useState<GuideProfileResponse[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [selectedVerification, setSelectedVerification] = useState<GuideProfileResponse | null>(null)
-  const [showRejectModal, setShowRejectModal] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
+  const [activeTab, setActiveTab] = React.useState<'pending' | 'rejected'>('pending')
+  const [verifications, setVerifications] = React.useState<GuideProfileResponse[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [selectedVerification, setSelectedVerification] = React.useState<GuideProfileResponse | null>(null)
+  const [showRejectModal, setShowRejectModal] = React.useState(false)
+  const [rejectReason, setRejectReason] = React.useState('')
+  const [isProcessing, setIsProcessing] = React.useState(false)
+
+  useBadgeReset('admin-verifications')
 
   // Zoom and document selection
-  const [zoom, setZoom] = useState(100)
-  const [selectedDocType, setSelectedDocType] = useState<'front' | 'back' | 'selfie'>('front')
+  const [zoom, setZoom] = React.useState(100)
+  const [selectedDocType, setSelectedDocType] = React.useState<'front' | 'back' | 'selfie'>('front')
 
   const fetchData = async () => {
     try {
@@ -104,7 +107,7 @@ export default function AdminVerificationQueuePage() {
     }
   }
 
-  useEffect(() => {
+  React.useEffect(() => {
     fetchData()
   }, [activeTab])
 
@@ -114,6 +117,7 @@ export default function AdminVerificationQueuePage() {
       setIsProcessing(true)
       await adminApproveVerification(id)
       toast.success('Guide approved successfully')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       setSelectedVerification(null)
       fetchData()
     } catch (err) {
@@ -132,6 +136,7 @@ export default function AdminVerificationQueuePage() {
       setIsProcessing(true)
       await adminRejectVerification(selectedVerification.id, rejectReason)
       toast.success('Guide verification rejected')
+      window.dispatchEvent(new CustomEvent('badge-refresh'))
       setShowRejectModal(false)
       setSelectedVerification(null)
       setRejectReason('')
