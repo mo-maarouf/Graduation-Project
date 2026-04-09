@@ -270,34 +270,36 @@ const BookingCard = ({ booking, onConfirm, onReject, isActionLoading }: BookingC
               </div>
             </div>
 
-            {isPending ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onReject(booking.id)}
-                  disabled={isActionLoading}
-                  className="p-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/50 transition-all disabled:opacity-50"
-                  title="Reject booking"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => onConfirm(booking.id)}
-                  disabled={isActionLoading}
-                  className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 flex items-center gap-2 px-4 font-bold text-xs"
-                >
-                  <Check className="w-4 h-4" />
-                  Confirm
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => router.push(`/dashboard/guide/bookings/${booking.id}`)}
-                className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all"
-                title="View details"
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/dashboard/guide/messages?tourId=${booking.tourId}&bookingId=${booking.id}`}
+                className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all"
+                title="Message Traveler"
               >
                 <MessageSquare className="w-4 h-4" />
-              </button>
-            )}
+              </Link>
+
+              {isPending && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onReject(booking.id)}
+                    disabled={isActionLoading}
+                    className="p-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/50 transition-all disabled:opacity-50"
+                    title="Reject booking"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onConfirm(booking.id)}
+                    disabled={isActionLoading}
+                    className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 flex items-center gap-2 px-4 font-bold text-xs"
+                  >
+                    <Check className="w-4 h-4" />
+                    Confirm
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

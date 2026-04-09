@@ -375,10 +375,13 @@ Thank you for choosing TravelMarket!
                         <Phone className="w-4 h-4" />
                         Call
                     </button>
-                    <button className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs">
+                    <Link 
+                      href={`/dashboard/traveler/messages?tourId=${booking.tourId}&bookingId=${booking.id}`}
+                      className="py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-xs"
+                    >
                         <MessageSquare className="w-4 h-4" />
                         Chat
-                    </button>
+                    </Link>
                   </div>
                   
                   {canCancel && (

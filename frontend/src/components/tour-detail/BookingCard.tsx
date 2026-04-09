@@ -63,7 +63,8 @@ export default function BookingCard({
     dynamicPricing,
     activeBookings = [],
     activeWaitlistEntries = [],
-    isLoading = false
+    isLoading = false,
+    onMessageGuide
 }: BookingCardProps) {
     // ========================================
     // HOOKS
@@ -476,7 +477,7 @@ export default function BookingCard({
                     <div className="pt-2 pb-4 border-b border-gray-100 dark:border-gray-800">
                         <button
                             type="button"
-                            onClick={() => toast.success('Messaging feature coming soon!')}
+                            onClick={() => onMessageGuide?.(selectedDate)}
                             className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline transition-colors"
                         >
                             <AlertCircle className="w-3.5 h-3.5" />

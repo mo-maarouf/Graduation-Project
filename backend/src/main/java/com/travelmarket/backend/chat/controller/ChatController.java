@@ -1,6 +1,7 @@
 package com.travelmarket.backend.chat.controller;
 
 import com.travelmarket.backend.chat.dto.ConversationResponse;
+import com.travelmarket.backend.chat.dto.InitiateConversationRequest;
 import com.travelmarket.backend.chat.dto.MessageResponse;
 import com.travelmarket.backend.chat.dto.SendMessageRequest;
 import com.travelmarket.backend.chat.service.ChatService;
@@ -42,6 +43,13 @@ public class ChatController {
                                        @AuthenticationPrincipal UserDetails principal) {
         User user = getUserOrThrow(principal);
         return chatService.sendMessage(user.getId(), request);
+    }
+
+    @PostMapping("/initiate")
+    public ConversationResponse initiateConversation(@Valid @RequestBody InitiateConversationRequest request,
+                                                     @AuthenticationPrincipal UserDetails principal) {
+        User user = getUserOrThrow(principal);
+        return chatService.initiateConversation(user.getId(), request);
     }
 
     private User getUserOrThrow(UserDetails principal) {

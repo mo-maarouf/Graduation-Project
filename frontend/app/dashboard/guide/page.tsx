@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Award,
   TrendingUp,
@@ -23,7 +24,8 @@ import {
   Info,
   Medal,
   Gem,
-  LayoutDashboard
+  LayoutDashboard,
+  MessageSquare
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
@@ -158,6 +160,7 @@ function VerificationBadge({ status }: { status: string }) {
 
 export default function GuideDashboardPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<GuideProfileResponse | null>(null)
   const [bookings, setBookings] = useState<GuideBookingResponse[]>([])
@@ -457,29 +460,41 @@ export default function GuideDashboardPage() {
                 {upcomingBookings.length > 0 ? (
                   <div className="space-y-4">
                     {upcomingBookings.map(b => (
-                      <Link key={b.id} href={`/dashboard/guide/bookings/${b.id}`}>
-                        <div className="p-6 bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-[2rem] hover:border-blue-500/50 hover:bg-white dark:hover:bg-gray-800 transition-all group mb-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600">
-                                <Calendar className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h4 className="font-black text-gray-900 dark:text-white tracking-tight group-hover:text-blue-600 transition-colors">
-                                  {b.tourTitle}
-                                </h4>
-                                <div className="flex items-center gap-3 mt-1">
-                                  <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {new Date(b.startTimeUtc).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                  </span>
-                                  <span className="text-xs font-bold text-blue-500 flex items-center gap-1">
-                                    <Users className="w-3 h-3" />
-                                    {b.peopleCount} {b.peopleCount === 1 ? 'guest' : 'guests'}
-                                  </span>
-                                </div>
+                      <div 
+                        key={b.id} 
+                        onClick={() => router.push(`/dashboard/guide/bookings/${b.id}`)}
+                        className="p-6 bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-[2rem] hover:border-blue-500/50 hover:bg-white dark:hover:bg-gray-800 transition-all group mb-4 cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600">
+                              <Calendar className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <h4 className="font-black text-gray-900 dark:text-white tracking-tight group-hover:text-blue-600 transition-colors">
+                                {b.tourTitle}
+                              </h4>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {new Date(b.startTimeUtc).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                </span>
+                                <span className="text-xs font-bold text-blue-500 flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {b.peopleCount} {b.peopleCount === 1 ? 'guest' : 'guests'}
+                                </span>
                               </div>
                             </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Link 
+                              href={`/dashboard/guide/messages?tourId=${b.tourId}&bookingId=${b.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all active:scale-95"
+                              title="Message Guest"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </Link>
                             <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                               b.status === BookingStatus.Confirmed 
                                 ? 'bg-emerald-500/10 text-emerald-600' 
@@ -489,7 +504,7 @@ export default function GuideDashboardPage() {
                             </div>
                           </div>
                         </div>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 ) : (

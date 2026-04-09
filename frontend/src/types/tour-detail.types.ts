@@ -367,6 +367,7 @@ export interface BookingCardProps {
     activeWaitlistEntries?: PublicActiveWaitlistResponse[]
     onUpdateBooking?: (bookingId: number, occurrenceId: number, peopleCount: number, confirmWaitlist?: boolean) => Promise<void>
     onCancelBooking?: (bookingId: number) => Promise<void>
+    onMessageGuide?: (date: string) => void
 }
 
 export interface GuideProfileCardProps {

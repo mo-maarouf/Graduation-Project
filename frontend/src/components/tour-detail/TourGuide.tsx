@@ -9,13 +9,65 @@ import {
     Globe,
     Star,
     ChevronRight,
-    Award
+    Award,
+    Loader2
 } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useState } from 'react'
+import { chatApi } from '@/src/lib/api/chat'
+import { useAuth } from '@/src/lib/contexts/AuthContext'
+import toast from 'react-hot-toast'
 
-export default function TourGuide({ guide }: any) {
+export default function TourGuide({ guide, tourId, tourTitle }: any) {
+    const { user } = useAuth()
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const [isSending, setIsSending] = useState(false)
+    
     const guideName = guide.displayName || guide.name || 'Local Guide'
     const isVerified = guide.verified ?? guide.guideVerified ?? false
-    
+
+    const handleMessageClick = useCallback(async () => {
+        if (!user) {
+            toast.error('Please login to message the guide')
+            router.push(`/auth/login?redirect=/tours/${tourId}`)
+            return
+        }
+
+        if (user.role === 'GUIDE' && user.userId === guide.id) {
+            toast.error("You can't message yourself!")
+            return
+        }
+
+        setIsSending(true)
+        try {
+            const selectedDate = searchParams.get('date')
+            let dateContext = ''
+            if (selectedDate) {
+                const formattedDate = new Date(selectedDate).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                })
+                dateContext = ` for the date ${formattedDate}`
+            }
+            
+            const message = await chatApi.sendMessage({
+                tourId: parseInt(tourId),
+                content: `Hi ${guideName}, I have a question about the tour "${tourTitle}"${dateContext}.`
+            })
+
+            toast.success('Conversation started!')
+            router.push(`/dashboard/traveler/messages?id=${message.conversationId}`)
+        } catch (error) {
+            console.error('Failed to start conversation:', error)
+            toast.error('Could not start conversation')
+        } finally {
+            setIsSending(false)
+        }
+    }, [user, tourId, tourTitle, guideName, searchParams, router, guide.id])
+
     const stats = {
         totalReviews: guide.totalReviews || 0,
         averageRating: guide.averageRating || '5.0',
@@ -92,9 +144,17 @@ export default function TourGuide({ guide }: any) {
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
-                    <button className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm">
-                        <MessageSquare className="w-4 h-4 text-blue-600" />
-                        Message
+                    <button 
+                        onClick={handleMessageClick}
+                        disabled={isSending}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm disabled:opacity-50"
+                    >
+                        {isSending ? (
+                            <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                        ) : (
+                            <MessageSquare className="w-4 h-4 text-blue-600" />
+                        )}
+                        {isSending ? 'Sending...' : 'Message'}
                     </button>
                     <Link 
                         href={profileUrl}

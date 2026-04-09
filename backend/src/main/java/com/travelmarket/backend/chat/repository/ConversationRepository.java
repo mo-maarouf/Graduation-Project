@@ -20,4 +20,8 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     // Find an existing conversation about a tour (PRE-BOOKING)
     @Query("SELECT c FROM Conversation c WHERE c.traveler.id = :travelerId AND c.guide.id = :guideId AND c.tour.id = :tourId AND c.booking IS NULL")
     Optional<Conversation> findExactConversationWithoutBooking(@Param("travelerId") Long travelerId, @Param("guideId") Long guideId, @Param("tourId") Long tourId);
+
+    // Find ANY conversation about a tour regardless of booking
+    @Query("SELECT c FROM Conversation c WHERE c.traveler.id = :travelerId AND c.guide.id = :guideId AND c.tour.id = :tourId")
+    List<Conversation> findAllConversationsForTour(@Param("travelerId") Long travelerId, @Param("guideId") Long guideId, @Param("tourId") Long tourId);
 }

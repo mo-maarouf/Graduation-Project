@@ -3,6 +3,7 @@ package com.travelmarket.backend.chat.service;
 import com.travelmarket.backend.booking.entity.Booking;
 import com.travelmarket.backend.booking.repository.BookingRepository;
 import com.travelmarket.backend.chat.dto.ConversationResponse;
+import com.travelmarket.backend.chat.dto.InitiateConversationRequest;
 import com.travelmarket.backend.chat.dto.MessageResponse;
 import com.travelmarket.backend.chat.dto.SendMessageRequest;
 import com.travelmarket.backend.chat.entity.Conversation;
@@ -11,6 +12,10 @@ import com.travelmarket.backend.chat.repository.ConversationRepository;
 import com.travelmarket.backend.chat.repository.MessageRepository;
 import com.travelmarket.backend.entity.User;
 import com.travelmarket.backend.repository.UserRepository;
+import com.travelmarket.backend.repository.TravelerProfileRepository;
+import com.travelmarket.backend.repository.GuideProfileRepository;
+import com.travelmarket.backend.entity.TravelerProfile;
+import com.travelmarket.backend.entity.GuideProfile;
 import com.travelmarket.backend.tour.entity.TourTemplate;
 import com.travelmarket.backend.tour.repository.TourTemplateRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +38,8 @@ public class ChatService {
     private final UserRepository userRepository;
     private final TourTemplateRepository tourTemplateRepository;
     private final BookingRepository bookingRepository;
+    private final TravelerProfileRepository travelerProfileRepository;
+    private final GuideProfileRepository guideProfileRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional(readOnly = true)
@@ -50,6 +57,15 @@ public class ChatService {
                 .stream()
                 .map(this::mapToMessageResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ConversationResponse initiateConversation(Long userId, InitiateConversationRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Conversation conversation = findOrCreateConversation(user, request.getTourId(), request.getBookingId());
+        return mapToConversationResponse(conversation);
     }
 
     @Transactional
@@ -116,15 +132,16 @@ public class ChatService {
         }
 
         // Try to find existing
-        Optional<Conversation> existing;
-        if (bookingId != null) {
-            existing = conversationRepository.findExactConversationWithBooking(travelerUserId, guideUserId, tourId, bookingId);
-        } else {
-            existing = conversationRepository.findExactConversationWithoutBooking(travelerUserId, guideUserId, tourId);
-        }
+        List<Conversation> existing = conversationRepository.findAllConversationsForTour(travelerUserId, guideUserId, tourId);
 
-        if (existing.isPresent()) {
-            return existing.get();
+        if (!existing.isEmpty()) {
+            Conversation conv = existing.get(0);
+            // If we have a booking now and the conversation didn't have one, update it to point to the booking
+            if (booking != null && conv.getBooking() == null) {
+                conv.setBooking(booking);
+                return conversationRepository.save(conv);
+            }
+            return conv;
         }
 
         // Create new
@@ -138,7 +155,6 @@ public class ChatService {
         conv.setGuide(guideUser);
         conv.setTour(tour);
         conv.setBooking(booking);
-
         return conversationRepository.save(conv);
     }
 
@@ -154,7 +170,7 @@ public class ChatService {
     }
 
     private ConversationResponse mapToConversationResponse(Conversation conv) {
-        return ConversationResponse.builder()
+        ConversationResponse.ConversationResponseBuilder builder = ConversationResponse.builder()
                 .id(conv.getId())
                 .travelerId(conv.getTraveler().getId())
                 .travelerName(conv.getTraveler().getFullName() != null ? conv.getTraveler().getFullName() : "Traveler")
@@ -162,9 +178,38 @@ public class ChatService {
                 .guideName(conv.getGuide().getFullName() != null ? conv.getGuide().getFullName() : "Guide")
                 .tourId(conv.getTour().getId())
                 .tourTitle(conv.getTour().getTitle())
-                .bookingId(conv.getBooking() != null ? conv.getBooking().getId() : null)
-                .updatedAtUtc(conv.getUpdatedAtUtc())
-                .build();
+                .updatedAtUtc(conv.getUpdatedAtUtc());
+
+        // Fetch Last Message Content
+        messageRepository.findTopByConversationIdOrderByCreatedAtUtcDesc(conv.getId())
+                .ifPresent(msg -> builder.lastMessageContent(msg.getContent()));
+
+        // Fetch Traveler Profile
+        travelerProfileRepository.findByUserId(conv.getTraveler().getId()).ifPresent(profile -> {
+            builder.travelerProfileId(profile.getId());
+            builder.travelerAvatarUrl(profile.getAvatarUrl());
+            builder.travelerLoyaltyTier(profile.getLoyaltyTier());
+            builder.travelerTripsCount(profile.getTotalCompletedTrips());
+        });
+
+        // Fetch Guide Profile
+        guideProfileRepository.findByUserId(conv.getGuide().getId()).ifPresent(profile -> {
+            builder.guideProfileId(profile.getId());
+            builder.guideAvatarUrl(profile.getAvatarUrl());
+            builder.guideIsVerified(profile.getIdVerified());
+            builder.guideTripsCount(profile.getTotalGuidedTrips());
+        });
+
+        if (conv.getBooking() != null) {
+            builder.bookingId(conv.getBooking().getId())
+                   .bookingStatus(conv.getBooking().getStatus().toString())
+                   .bookingStartTimeUtc(conv.getBooking().getOccurrence().getStartTimeUtc())
+                   .peopleCount(conv.getBooking().getPeopleCount())
+                   .totalPrice(conv.getBooking().getFinalPrice())
+                   .currency(conv.getBooking().getCurrency());
+        }
+
+        return builder.build();
     }
 
     private MessageResponse mapToMessageResponse(Message msg) {

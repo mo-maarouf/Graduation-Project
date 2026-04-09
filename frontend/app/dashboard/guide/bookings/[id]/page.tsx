@@ -275,13 +275,13 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
                   </a>
                 </div>
 
-                <button 
-                  onClick={() => router.push(`/dashboard/guide/messages?traveler=${booking.id}`)}
+                <Link
+                  href={`/dashboard/guide/messages?tourId=${booking.tourId}&bookingId=${booking.id}`}
                   className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all group"
                 >
                   <MessageSquare className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                   Message Traveler
-                </button>
+                </Link>
               </div>
             ) : (
               <div className="py-12 text-center bg-gray-50 dark:bg-gray-800/30 rounded-[2rem] border border-dashed border-gray-200 dark:border-gray-800">

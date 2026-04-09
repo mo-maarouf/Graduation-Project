@@ -12,9 +12,14 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useSearchParams } from 'next/navigation'
 import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Image from 'next/image'
 import Link from 'next/link'
+import { chatApi, ConversationResponse, MessageResponse } from '@/src/lib/api/chat'
+import { useAuth } from '@/src/lib/contexts/AuthContext'
+import { useChatSocket } from '@/src/lib/hooks/useChatSocket'
 import {
     MessageSquare,
     Send,
@@ -30,6 +35,7 @@ import {
     Shield,
     CheckCircle,
     Clock,
+    Lock,
     User,
     Users,
     Flag,
@@ -57,6 +63,7 @@ type BookingStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled'
 
 interface Guide {
     id: string
+    profileId: string
     name: string
     avatar?: string
     email: string
@@ -97,6 +104,7 @@ interface Message {
     isFlagged: boolean
     flagReason?: string
     hasBlurredContent: boolean
+    hasSuspiciousContent: boolean
     attachments?: {
         id: string
         type: 'image' | 'file'
@@ -126,6 +134,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
         id: 'conv-1',
         guide: {
             id: 'guide-123',
+            profileId: '123',
             name: 'Mehmet Yilmaz',
             avatar: '/images/guides/mehmet.jpg',
             email: 'mehmet.guide@example.com',
@@ -163,7 +172,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
             status: 'delivered',
             isFlagged: true,
             flagReason: 'Phone number detected',
-            hasBlurredContent: true
+            hasBlurredContent: true,
+            hasSuspiciousContent: true
         },
         unreadCount: 2,
         status: 'active',
@@ -175,6 +185,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
         id: 'conv-2',
         guide: {
             id: 'guide-456',
+            profileId: '456',
             name: 'Layla Hassan',
             avatar: '/images/guides/layla.jpg',
             email: 'layla.hassan@example.com',
@@ -210,7 +221,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
             timestamp: '2026-03-09T16:45:00Z',
             status: 'read',
             isFlagged: false,
-            hasBlurredContent: false
+            hasBlurredContent: false,
+            hasSuspiciousContent: false
         },
         unreadCount: 0,
         status: 'active',
@@ -222,6 +234,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
         id: 'conv-3',
         guide: {
             id: 'guide-789',
+            profileId: '789',
             name: 'Ahmet Demir',
             avatar: '/images/guides/ahmet.jpg',
             email: 'ahmet.demir@example.com',
@@ -257,7 +270,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
             status: 'delivered',
             isFlagged: true,
             flagReason: 'Email address detected',
-            hasBlurredContent: true
+            hasBlurredContent: true,
+            hasSuspiciousContent: true
         },
         unreadCount: 1,
         status: 'active',
@@ -269,6 +283,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
         id: 'conv-4',
         guide: {
             id: 'guide-101',
+            profileId: '101',
             name: 'Elias Khoury',
             avatar: '/images/guides/elias.jpg',
             email: 'elias.khoury@example.com',
@@ -302,7 +317,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
             status: 'read',
             isFlagged: true,
             flagReason: 'Suspicious payment discussion',
-            hasBlurredContent: false
+            hasBlurredContent: false,
+            hasSuspiciousContent: false
         },
         unreadCount: 0,
         status: 'blocked',
@@ -311,91 +327,6 @@ const MOCK_CONVERSATIONS: Conversation[] = [
         updatedAt: '2026-03-07T14:10:00Z'
     }
 ]
-
-const MOCK_MESSAGES: Record<string, Message[]> = {
-    'conv-1': [
-        {
-            id: 'msg-1',
-            conversationId: 'conv-1',
-            senderId: 'traveler-123',
-            senderName: 'Ahmed Khan',
-            content: "Hi Mehmet! I'm excited about the Ottoman tour. Is it suitable for children? We have two kids aged 8 and 10.",
-            timestamp: '2026-03-09T10:15:00Z',
-            status: 'read',
-            isFlagged: false,
-            hasBlurredContent: false
-        },
-        {
-            id: 'msg-2',
-            conversationId: 'conv-1',
-            senderId: 'guide-123',
-            senderName: 'Mehmet Yilmaz',
-            content: "Hello Ahmed! Yes, it's very family-friendly. Kids especially love the Topkapi Palace treasury rooms with all the jewels! I've guided many families with children that age.",
-            timestamp: '2026-03-09T10:25:00Z',
-            status: 'read',
-            isFlagged: false,
-            hasBlurredContent: false
-        },
-        {
-            id: 'msg-3',
-            conversationId: 'conv-1',
-            senderId: 'traveler-123',
-            senderName: 'Ahmed Khan',
-            content: "Great! We're a family of 4. Where should we meet?",
-            timestamp: '2026-03-10T14:20:00Z',
-            status: 'delivered',
-            isFlagged: false,
-            hasBlurredContent: false
-        },
-        {
-            id: 'msg-4',
-            conversationId: 'conv-1',
-            senderId: 'guide-123',
-            senderName: 'Mehmet Yilmaz',
-            content: "Perfect! I'll meet you at the fountain with an orange sign. My phone is +90 555 123 4567 if you need to reach me.",
-            timestamp: '2026-03-10T14:30:00Z',
-            status: 'delivered',
-            isFlagged: true,
-            flagReason: 'Phone number detected',
-            hasBlurredContent: true
-        }
-    ],
-    'conv-2': [
-        {
-            id: 'msg-5',
-            conversationId: 'conv-2',
-            senderId: 'traveler-123',
-            senderName: 'Ahmed Khan',
-            content: "Hi Layla! We're a group of 4 for the food tour. Any vegetarian options?",
-            timestamp: '2026-03-08T16:30:00Z',
-            status: 'read',
-            isFlagged: false,
-            hasBlurredContent: false
-        },
-        {
-            id: 'msg-6',
-            conversationId: 'conv-2',
-            senderId: 'guide-456',
-            senderName: 'Layla Hassan',
-            content: "Absolutely! There are plenty of vegetarian options. I'll make sure to include extra stops for you.",
-            timestamp: '2026-03-08T17:15:00Z',
-            status: 'read',
-            isFlagged: false,
-            hasBlurredContent: false
-        },
-        {
-            id: 'msg-7',
-            conversationId: 'conv-2',
-            senderId: 'traveler-123',
-            senderName: 'Ahmed Khan',
-            content: "Can we start at 10am instead of 11am?",
-            timestamp: '2026-03-09T16:45:00Z',
-            status: 'read',
-            isFlagged: false,
-            hasBlurredContent: false
-        }
-    ]
-}
 
 // ============================================================================
 // REGEX PATTERNS FOR CONTENT BLURRING
@@ -423,26 +354,20 @@ interface MessageContentProps {
     content: string
     isFlagged: boolean
     hasBlurredContent: boolean
+    hasSuspiciousContent: boolean
     bookingConfirmed: boolean
 }
 
-function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirmed }: MessageContentProps) {
+function MessageContent({ content, isFlagged, hasBlurredContent, hasSuspiciousContent, bookingConfirmed }: MessageContentProps) {
     const [showBlurred, setShowBlurred] = useState(false)
 
-    // If booking is confirmed, always show content
-    const shouldBlur = !bookingConfirmed && hasBlurredContent && !showBlurred
+    // If booking is confirmed, always show content unless it's suspicious
+    const shouldBlur = (hasBlurredContent && !bookingConfirmed && !showBlurred) || (hasSuspiciousContent && !showBlurred)
 
-    // Check for suspicious keywords
-    const hasSuspiciousContent = SUSPICIOUS_KEYWORDS.some(keyword =>
-        content.toLowerCase().includes(keyword.toLowerCase())
-    )
-
-    // Apply regex highlighting
     const highlightContent = (text: string) => {
         let parts = []
         let lastIndex = 0
 
-        // Find all matches
         const phoneMatches = [...text.matchAll(PHONE_REGEX)]
         const emailMatches = [...text.matchAll(EMAIL_REGEX)]
         const allMatches = [...phoneMatches, ...emailMatches].sort((a, b) => a.index! - b.index!)
@@ -452,44 +377,41 @@ function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirme
         allMatches.forEach((match, i) => {
             const matchStart = match.index!
             const matchEnd = matchStart + match[0].length
-
-            // Add text before match
             if (matchStart > lastIndex) {
                 parts.push(text.substring(lastIndex, matchStart))
             }
-
-            // Add highlighted match
             parts.push(
                 `<span class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1 rounded font-mono text-xs">${match[0]}</span>`
             )
-
             lastIndex = matchEnd
         })
-
-        // Add remaining text
         if (lastIndex < text.length) {
             parts.push(text.substring(lastIndex))
         }
-
         return parts.join('')
     }
 
     return (
         <div className="relative group">
-            {/* Blur overlay */}
             {shouldBlur && (
                 <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-gray-900/50 rounded flex items-center justify-center z-10">
-                    <button
-                        onClick={() => setShowBlurred(true)}
-                        className="flex items-center gap-1 px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <Eye className="w-3 h-3" />
-                        Reveal contact info
-                    </button>
+                    {hasSuspiciousContent ? (
+                        <span className="flex items-center gap-1 px-2 py-1 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider rounded">
+                            <Lock className="w-3 h-3" />
+                            Payment Info Locked
+                        </span>
+                    ) : (
+                        <button
+                            onClick={() => setShowBlurred(true)}
+                            className="flex items-center gap-1 px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <Eye className="w-3 h-3" />
+                            Reveal contact info
+                        </button>
+                    )}
                 </div>
             )}
 
-            {/* Message content */}
             <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
                 {isFlagged ? (
                     <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded">
@@ -508,7 +430,6 @@ function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirme
                 )}
             </div>
 
-            {/* Suspicious warning */}
             {hasSuspiciousContent && !isFlagged && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                     <Shield className="w-3 h-3" />
@@ -546,8 +467,6 @@ function GuideAvatar({ guide, size = 'md' }: GuideAvatarProps) {
                     </div>
                 )}
             </div>
-
-            {/* Verified badge */}
             {guide.isVerified && (
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-600 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
                     <Shield className="w-2 h-2 text-white" />
@@ -568,6 +487,7 @@ interface ConversationItemProps {
 }
 
 function ConversationItem({ conversation, isActive, onClick }: ConversationItemProps) {
+    const { user } = useAuth()
     const guide = conversation.guide
     const lastMessage = conversation.lastMessage
     const time = new Date(lastMessage.timestamp).toLocaleTimeString('en-US', {
@@ -587,10 +507,7 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
             className={`w-full p-4 text-left border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950/30' : ''} ${safetyColors[conversation.safetyLevel]}`}
         >
             <div className="flex items-start gap-3">
-                {/* Avatar */}
                 <GuideAvatar guide={guide} size="md" />
-
-                {/* Content */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
@@ -605,17 +522,13 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
                             {time}
                         </span>
                     </div>
-
-                    {/* Booking reference */}
                     {conversation.booking && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">
                             🎫 {conversation.booking.tourTitle} • {conversation.booking.date}
                         </p>
                     )}
-
-                    {/* Last message preview */}
                     <div className="flex items-center gap-1 text-sm">
-                        {lastMessage.senderId === 'traveler-123' && (
+                        {lastMessage.senderId === user?.userId && (
                             <span className="text-xs text-gray-400">You: </span>
                         )}
                         <p className="flex-1 text-xs text-gray-600 dark:text-gray-400 truncate">
@@ -624,8 +537,6 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
                                 : lastMessage.content}
                         </p>
                     </div>
-
-                    {/* Status indicators */}
                     <div className="flex items-center gap-2 mt-1">
                         {conversation.unreadCount > 0 && (
                             <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
@@ -659,84 +570,113 @@ interface MessageBubbleProps {
     message: Message
     isOwn: boolean
     bookingConfirmed: boolean
-    showAvatar?: boolean
-    senderName?: string
+    showAvatar: boolean
+    senderName: string
     senderAvatar?: string
+    index: number
+    messages: Message[]
+    isExpanded: boolean
+    onToggle: () => void
 }
 
 function MessageBubble({
     message,
     isOwn,
     bookingConfirmed,
-    showAvatar = true,
+    showAvatar,
     senderName,
-    senderAvatar
+    senderAvatar,
+    index,
+    messages,
+    isExpanded,
+    onToggle
 }: MessageBubbleProps) {
     const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
         hour: 'numeric',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: true
     })
 
     return (
-        <div className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
-            {/* Avatar */}
-            {showAvatar && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                    {senderAvatar ? (
-                        <Image src={senderAvatar} alt={senderName || ''} fill className="object-cover" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                            <User className="w-4 h-4 text-gray-400" />
+        <div className={`flex items-end gap-2 w-full max-w-[85%] ${isOwn ? 'ml-auto flex-row-reverse' : ''}`}>
+             {!isOwn ? (
+                <div className="flex-shrink-0 w-8">
+                    {showAvatar && (
+                        <div className="relative w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                            {senderAvatar ? (
+                                <Image src={senderAvatar} alt={senderName || ''} fill className="object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <User className="w-4 h-4 text-gray-400" />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
+            ) : (
+                <div className="flex-shrink-0 w-8" />
             )}
 
-            {/* Message */}
-            <div className={`flex-1 max-w-[70%] ${isOwn ? 'text-right' : ''}`}>
-                {/* Sender name */}
-                {!isOwn && showAvatar && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+            <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} min-w-0`}>
+                {!isOwn && (index === 0 || messages[index - 1]?.senderId !== message.senderId) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 ml-1">
                         {senderName}
                     </p>
                 )}
 
-                {/* Message content */}
-                <div className={`inline-block max-w-full p-3 rounded-2xl ${isOwn ? 'bg-blue-600 dark:bg-blue-700 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'}`}>
+                <div 
+                    onClick={onToggle}
+                    className={`
+                        relative p-3 rounded-2xl text-sm transition-all cursor-pointer
+                        ${isOwn 
+                            ? 'bg-blue-600 text-white rounded-tr-none shadow-md hover:bg-blue-700' 
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-none hover:bg-gray-200 dark:hover:bg-gray-700'}
+                        ${isExpanded ? 'shadow-lg scale-[1.01]' : ''}
+                    `}
+                >
                     <MessageContent
                         content={message.content}
                         isFlagged={message.isFlagged}
                         hasBlurredContent={message.hasBlurredContent}
+                        hasSuspiciousContent={message.hasSuspiciousContent}
                         bookingConfirmed={bookingConfirmed}
                     />
                 </div>
 
-                {/* Attachments */}
-                {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                        {message.attachments.map((att) => (
-                            <div
-                                key={att.id}
-                                className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm"
-                            >
-                                <Paperclip className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-700 dark:text-gray-300">{att.name}</span>
+                {(showAvatar || isExpanded) && (
+                    <motion.div 
+                        initial={false}
+                        animate={{ height: isExpanded ? 'auto' : '1.25rem', opacity: 1 }}
+                        className={`flex flex-col mt-0.5 ${isOwn ? 'items-end' : 'items-start'}`}
+                    >
+                        {!isExpanded ? (
+                            <div className={`flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
+                                <span>{time}</span>
+                                {isOwn && message.status === 'read' && (
+                                    <CheckCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                )}
                             </div>
-                        ))}
-                    </div>
+                        ) : (
+                            <motion.div 
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
+                            >
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                                        {new Date(message.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} • {time}
+                                    </span>
+                                    {isOwn && message.status === 'read' && (
+                                        <CheckCircle className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </motion.div>
                 )}
-
-                {/* Timestamp and status */}
-                <div className={`flex items-center gap-1 mt-1 text-xs text-gray-500 dark:text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
-                    <span>{time}</span>
-                    {isOwn && message.status === 'read' && (
-                        <CheckCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                    )}
-                    {isOwn && message.status === 'delivered' && (
-                        <CheckCircle className="w-3 h-3 text-gray-400" />
-                    )}
-                </div>
             </div>
+            
+            {isOwn && <div className="flex-shrink-0 w-8" />}
         </div>
     )
 }
@@ -750,13 +690,14 @@ interface BookingInfoCardProps {
 }
 
 function BookingInfoCard({ booking }: BookingInfoCardProps) {
-    const date = new Date(`${booking.date}T${booking.time}`)
-    const formattedDate = date.toLocaleDateString('en-US', {
+    const dateStr = booking.date && booking.time ? `${booking.date}T${booking.time}` : ''
+    const date = dateStr ? new Date(dateStr) : null
+    const formattedDate = date && !isNaN(date.getTime()) ? date.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         year: 'numeric'
-    })
+    }) : booking.date
 
     const statusColors = {
         confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -768,14 +709,9 @@ function BookingInfoCard({ booking }: BookingInfoCardProps) {
     return (
         <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl mb-4">
             <div className="flex items-start gap-3">
-                {/* Tour image placeholder */}
                 <div className="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-
                 <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-                        {booking.tourTitle}
-                    </h4>
-
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{booking.tourTitle}</h4>
                     <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                         <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -785,24 +721,12 @@ function BookingInfoCard({ booking }: BookingInfoCardProps) {
                             <Users className="w-3 h-3" />
                             {booking.peopleCount} {booking.peopleCount === 1 ? 'person' : 'people'} • ${booking.totalPrice}
                         </div>
-                        {booking.meetingPoint && (
-                            <div className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {booking.meetingPoint}
-                            </div>
-                        )}
                     </div>
-
                     <div className="mt-2 flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${statusColors[booking.status]}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${statusColors[booking.status as keyof typeof statusColors] || statusColors.pending}`}>
                             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                         </span>
-                        <Link
-                            href={`/tours/${booking.tourId}`}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                            View tour
-                        </Link>
+                        <Link href={`/tours/${booking.tourId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">View tour</Link>
                     </div>
                 </div>
             </div>
@@ -811,310 +735,209 @@ function BookingInfoCard({ booking }: BookingInfoCardProps) {
 }
 
 // ============================================================================
-// SAFETY INFO PANEL
+// MAIN PAGE
 // ============================================================================
 
-function SafetyInfoPanel() {
-    const [isOpen, setIsOpen] = useState(false)
+export default function TravelerMessagingPage() {
+    const searchParams = useSearchParams()
+    const initialConvoId = searchParams.get('id')
+    const initialTourId = searchParams.get('tourId')
+    const initialBookingId = searchParams.get('bookingId')
 
-    return (
-        <div className="relative">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Safety information"
-            >
-                <Info className="w-4 h-4" />
-            </button>
+    const { user } = useAuth()
+    const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
+    const [showMobileList, setShowMobileList] = useState(true)
+    const [isLoadingConvs, setIsLoadingConvs] = useState(true)
+    const [isLoadingMsgs, setIsLoadingMsgs] = useState(false)
+    const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [newMessage, setNewMessage] = useState('')
+    const [realConvs, setRealConvs] = useState<ConversationResponse[]>([])
+    const [realMsgs, setRealMsgs] = useState<MessageResponse[]>([])
 
-            {isOpen && (
-                <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-4 z-50">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-1">
-                        <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        Safe Chat Protection
-                    </h4>
-                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-                        <li className="flex items-start gap-2">
-                            <EyeOff className="w-3 h-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                            <span>Phone numbers and emails are automatically blurred until booking is confirmed</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <Flag className="w-3 h-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                            <span>Suspicious messages are flagged for admin review</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <Ban className="w-3 h-3 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                            <span>Never share payment information outside the platform</span>
-                        </li>
-                    </ul>
-                </div>
-            )}
-        </div>
-    )
-}
-
-// ============================================================================
-// QUICK REPLY TEMPLATES (Traveler version - questions for guides)
-// ============================================================================
-
-interface QuickReplyTemplatesProps {
-    onSelect: (text: string) => void
-}
-
-function QuickReplyTemplates({ onSelect }: QuickReplyTemplatesProps) {
-    const [isOpen, setIsOpen] = useState(false)
-
-    const templates = [
-        { text: "Thank you! I have a few questions about the tour." },
-        { text: "Is this tour suitable for children?" },
-        { text: "Are there vegetarian/vegan options available?" },
-        { text: "Where exactly is the meeting point?" },
-        { text: "What should I bring with me?" }
-    ]
-
-    return (
-        <div className="relative">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                title="Quick questions"
-            >
-                <HelpCircle className="w-5 h-5" />
-            </button>
-
-            {isOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 z-50">
-                    {templates.map((template, index) => (
-                        <button
-                            key={index}
-                            onClick={() => {
-                                onSelect(template.text)
-                                setIsOpen(false)
-                            }}
-                            className="w-full text-left p-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                        >
-                            {template.text}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
-
-// ============================================================================
-// MAIN CHAT INTERFACE
-// ============================================================================
-
-export default function TravelerMessagesPage() {
-    const [selectedConversation, setSelectedConversation] = React.useState<string | null>(null)
-    const [showMobileList, setShowMobileList] = React.useState(true)
-    const [newMessage, setNewMessage] = React.useState('')
-    const messagesEndRef = React.useRef<HTMLDivElement>(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     useBadgeReset('traveler-messages')
 
-    const currentConversation = selectedConversation
-        ? MOCK_CONVERSATIONS.find(c => c.id === selectedConversation)
-        : null
-    const messages = selectedConversation ? MOCK_MESSAGES[selectedConversation] || [] : []
+    useEffect(() => {
+        if (!user) return
+        const load = async () => {
+            setIsLoadingConvs(true)
+            try {
+                const convs = await chatApi.getConversations()
+                setRealConvs(convs)
+                if (initialConvoId) {
+                    setSelectedConversation(initialConvoId)
+                    setShowMobileList(false)
+                } else if (initialTourId) {
+                    const newConv = await chatApi.initiateConversation({
+                        tourId: parseInt(initialTourId),
+                        bookingId: initialBookingId ? parseInt(initialBookingId) : undefined
+                    })
+                    setRealConvs(prev => prev.some(c => c.id === newConv.id) ? prev : [newConv, ...prev])
+                    setSelectedConversation(newConv.id.toString())
+                    setShowMobileList(false)
+                }
+            } catch (err) { console.error(err) }
+            finally { setIsLoadingConvs(false) }
+        }
+        load()
+    }, [user, initialConvoId, initialTourId, initialBookingId])
 
-    // Scroll to bottom on new messages
-    React.useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages])
+    useEffect(() => {
+        if (selectedConversation) {
+            setIsLoadingMsgs(true)
+            chatApi.getMessages(parseInt(selectedConversation))
+                .then(msgs => setRealMsgs(Array.from(new Map(msgs.map(m => [String(m.id), m])).values())))
+                .finally(() => setIsLoadingMsgs(false))
+        } else setRealMsgs([])
+    }, [selectedConversation])
 
-    const handleSendMessage = (e: React.FormEvent) => {
+    useChatSocket(
+        selectedConversation ? parseInt(selectedConversation) : null,
+        React.useCallback((receivedMsg: MessageResponse) => {
+            setRealMsgs(prev => prev.some(m => String(m.id) === String(receivedMsg.id)) ? prev : [...prev, receivedMsg])
+            setRealConvs(prev => prev.map(c => c.id === receivedMsg.conversationId ? { ...c, updatedAtUtc: receivedMsg.createdAtUtc } : c).sort((a,b) => new Date(b.updatedAtUtc).getTime() - new Date(a.updatedAtUtc).getTime()))
+        }, [])
+    )
+
+    const mappedConvs: Conversation[] = realConvs.map(c => {
+        const timeStr = c.updatedAtUtc ? (c.updatedAtUtc.endsWith('Z') ? c.updatedAtUtc : c.updatedAtUtc + 'Z') : new Date().toISOString()
+        let bookingDate = '', bookingTime = ''
+        if (c.bookingStartTimeUtc) {
+            const date = new Date(c.bookingStartTimeUtc)
+            bookingDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            bookingTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        }
+        return {
+            id: c.id.toString(),
+            guide: { 
+                id: c.guideId.toString(), 
+                profileId: c.guideProfileId?.toString() || c.guideId.toString(),
+                name: c.guideName || 'Guide', 
+                avatar: c.guideAvatarUrl, 
+                isVerified: true, 
+                email: '' 
+            },
+            lastMessage: { id: `l-${c.id}`, conversationId: c.id.toString(), senderId: '', senderName: '', content: c.lastMessageContent || 'Tap to view messages...', timestamp: timeStr, status: 'read', isFlagged: false, hasBlurredContent: false, hasSuspiciousContent: false },
+            unreadCount: 0, status: 'active', safetyLevel: 'safe', bookingConfirmed: c.bookingStatus === 'Confirmed' || c.bookingStatus === 'Completed', updatedAt: timeStr,
+            booking: { id: c.bookingId?.toString() || '', tourId: c.tourId.toString(), tourTitle: c.tourTitle, date: bookingDate, time: bookingTime, peopleCount: c.peopleCount || 1, totalPrice: c.totalPrice || 0, currency: c.currency || 'USD', status: (c.bookingStatus?.toLowerCase() as BookingStatus || 'pending') }
+        }
+    })
+
+    const currentConversation = selectedConversation ? mappedConvs.find(c => c.id === selectedConversation) : null
+    const messages: Message[] = realMsgs.map(m => ({
+        id: m.id.toString(), conversationId: m.conversationId.toString(), senderId: m.senderId.toString(), senderName: m.senderName, content: m.content,
+        timestamp: m.createdAtUtc ? (m.createdAtUtc.endsWith('Z') ? m.createdAtUtc : m.createdAtUtc + 'Z') : new Date().toISOString(),
+        status: 'read', isFlagged: false, hasBlurredContent: EMAIL_REGEX.test(m.content) || PHONE_REGEX.test(m.content),
+        hasSuspiciousContent: SUSPICIOUS_KEYWORDS.some(kw => m.content.toLowerCase().includes(kw))
+    }))
+
+    const filteredConversations = mappedConvs.filter(conv => {
+        const hasMessages = conv.lastMessage && conv.lastMessage.content !== 'Tap to view messages...'
+        if (!hasMessages && selectedConversation !== conv.id) return false
+        if (!searchTerm) return true
+        return conv.guide.name.toLowerCase().includes(searchTerm.toLowerCase()) || conv.booking?.tourTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    })
+
+    useEffect(() => {
+        if (selectedConversation && messages.length > 0) {
+            const timer = setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+            }, 50)
+            return () => clearTimeout(timer)
+        }
+    }, [selectedConversation])
+
+    useEffect(() => {
+        if (selectedConversation && messages.length > 0) {
+            const timer = setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+            }, 50)
+            return () => clearTimeout(timer)
+        }
+    }, [messages.length])
+
+    const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newMessage.trim() || !selectedConversation) return
-
-        // In Phase 3: Send message via API
-        console.log('Sending message:', newMessage)
-        setNewMessage('')
-    }
-
-    const handleQuickReply = (text: string) => {
-        setNewMessage(text)
-    }
-
-    const handleFlagMessage = (messageId: string) => {
-        console.log('Flag message:', messageId)
-        // In Phase 3: Report message to admin
+        try {
+            await chatApi.sendMessage({ conversationId: parseInt(selectedConversation), content: newMessage })
+            setNewMessage('')
+        } catch (e) { console.error(e) }
     }
 
     return (
-        <>
-            {/* Page offset if you want the page to be for you need to controll this sm:h-[calc(100vh-4rem-5px)] in this measures the footer appear and without scroll bar because you are subtracting from height  and there is 2 one for mobile other for desktop*/}
-            <div className="pt-14 sm:pt-16 h-[calc(100vh)] sm:h-[calc(100vh)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
-                <div className="h-full flex flex-col">
-                    {/* Header */}
-                    <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                                    Messages
-                                </h1>
-                                <SafetyInfoPanel />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <Filter className="w-4 h-4" />
-                                </button>
-                                <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <MoreVertical className="w-4 h-4" />
-                                </button>
-                            </div>
+        <div className="h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
+            <div className="h-full flex flex-col overflow-hidden">
+                <div className="flex-none bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Messages</h1>
                         </div>
+                    </div>
+                    <div className="relative mt-3">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search..." className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-sm" />
+                    </div>
+                </div>
 
-                        {/* Search */}
-                        <div className="relative mt-3">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search conversations..."
-                                className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                            />
+                <div className="flex-1 flex min-h-0 overflow-hidden bg-white dark:bg-gray-900">
+                    <div className={`w-full sm:w-80 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden ${showMobileList ? 'block' : 'hidden sm:block'}`}>
+                        <div className="flex-1 overflow-y-auto">
+                            {isLoadingConvs ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <div key={i} className="p-4 border-b border-gray-100 dark:border-gray-800 animate-pulse flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full" />
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                                            <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
+                                        </div>
+                                    </div>
+                                ))
+                            ) : filteredConversations.map(conv => (
+                                <ConversationItem key={conv.id} conversation={conv} isActive={selectedConversation === conv.id} onClick={() => { setSelectedConversation(conv.id); setShowMobileList(false); }} />
+                            ))}
                         </div>
                     </div>
 
-                    {/* Main chat area */}
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Conversation list */}
-                        <div className={`w-full sm:w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto ${showMobileList ? 'block' : 'hidden sm:block'}`}>
-                            {MOCK_CONVERSATIONS.map((conv) => (
-                                <ConversationItem
-                                    key={conv.id}
-                                    conversation={conv}
-                                    isActive={selectedConversation === conv.id}
-                                    onClick={() => {
-                                        setSelectedConversation(conv.id)
-                                        setShowMobileList(false)
-                                    }}
-                                />
-                            ))}
-                        </div>
-
-                        {/* Chat area */}
-                        <div className={`flex-1 flex flex-col bg-white dark:bg-gray-900 ${!showMobileList ? 'block' : 'hidden sm:block'}`}>
-                            {currentConversation ? (
-                                <>
-                                    {/* Chat header */}
-                                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                                        <div className="flex items-center gap-3">
-                                            {/* Back button - mobile only */}
-                                            <button
-                                                onClick={() => setShowMobileList(true)}
-                                                className="sm:hidden p-1 text-gray-500 hover:text-gray-700"
-                                            >
-                                                <ChevronLeft className="w-5 h-5" />
-                                            </button>
-
-                                            {/* Guide info */}
-                                            <GuideAvatar guide={currentConversation.guide} size="sm" />
-                                            <div>
-                                                <h2 className="font-semibold text-gray-900 dark:text-white">
-                                                    {currentConversation.guide.name}
-                                                </h2>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {currentConversation.booking?.tourTitle || 'No active booking'}
-                                                </p>
-                                            </div>
+                    <div className={`flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-gray-900 ${!showMobileList ? 'block' : 'hidden sm:block'}`}>
+                        {selectedConversation && currentConversation ? (
+                            <>
+                                <div className="flex-none flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                                    <button onClick={() => setShowMobileList(true)} className="sm:hidden p-1"><ChevronLeft className="w-5 h-5" /></button>
+                                    <Link href={`/guides/${currentConversation.guide.profileId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                                        <GuideAvatar guide={currentConversation.guide} size="sm" />
+                                        <div className="min-w-0">
+                                            <h2 className="font-semibold truncate">{currentConversation.guide.name}</h2>
+                                            <p className="text-xs text-gray-500 truncate">Guide</p>
                                         </div>
-
-                                        {/* Safety indicator */}
-                                        {currentConversation.safetyLevel === 'suspicious' && (
-                                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-lg">
-                                                <Flag className="w-3 h-3" />
-                                                Under Review
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Messages */}
-                                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                        {/* Booking info card */}
-                                        {currentConversation.booking && (
-                                            <BookingInfoCard booking={currentConversation.booking} />
-                                        )}
-
-                                        {messages.map((message, index) => (
-                                            <div key={message.id} className="relative group">
-                                                <MessageBubble
-                                                    message={message}
-                                                    isOwn={message.senderId === 'traveler-123'}
-                                                    bookingConfirmed={currentConversation.bookingConfirmed}
-                                                    showAvatar={
-                                                        index === 0 ||
-                                                        messages[index - 1]?.senderId !== message.senderId
-                                                    }
-                                                    senderName={currentConversation.guide.name}
-                                                    senderAvatar={currentConversation.guide.avatar}
-                                                />
-
-                                                {/* Flag button */}
-                                                {!message.isFlagged && message.senderId !== 'traveler-123' && (
-                                                    <button
-                                                        onClick={() => handleFlagMessage(message.id)}
-                                                        className="absolute -right-2 top-1/2 -translate-y-1/2 p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
-                                                        title="Report message"
-                                                    >
-                                                        <Flag className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <div ref={messagesEndRef} />
-                                    </div>
-
-                                    {/* Message input */}
-                                    <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-800">
-                                        <div className="flex gap-2">
-                                            <QuickReplyTemplates onSelect={handleQuickReply} />
-                                            <button
-                                                type="button"
-                                                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                            >
-                                                <Paperclip className="w-5 h-5" />
-                                            </button>
-                                            <input
-                                                type="text"
-                                                value={newMessage}
-                                                onChange={(e) => setNewMessage(e.target.value)}
-                                                placeholder="Type a message..."
-                                                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                            />
-                                            <button
-                                                type="submit"
-                                                disabled={!newMessage.trim()}
-                                                className="p-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <Send className="w-5 h-5" />
-                                            </button>
-                                        </div>
-
-                                        {/* Safety reminder */}
-                                        {!currentConversation.bookingConfirmed && (
-                                            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                                <Shield className="w-3 h-3" />
-                                                Contact info is blurred until booking is confirmed
-                                            </p>
-                                        )}
-                                    </form>
-                                </>
-                            ) : (
-                                <div className="h-full flex items-center justify-center">
-                                    <div className="text-center">
-                                        <MessageSquare className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-                                        <p className="text-gray-500 dark:text-gray-400">
-                                            Select a conversation to start chatting
-                                        </p>
-                                    </div>
+                                    </Link>
                                 </div>
-                            )}
-                        </div>
+                                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                                    {currentConversation.booking && <BookingInfoCard booking={currentConversation.booking} />}
+                                    {isLoadingMsgs ? (
+                                        <div className="space-y-4">
+                                            {[1,2,3].map(i => <div key={i} className={`h-16 w-2/3 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse ${i % 2 === 0 ? 'ml-auto' : ''}`} />)}
+                                        </div>
+                                    ) : messages.map((m, i) => (
+                                        <MessageBubble key={m.id} message={m} isOwn={m.senderId === user?.userId} bookingConfirmed={currentConversation.bookingConfirmed} showAvatar={i === messages.length - 1 || messages[i+1]?.senderId !== m.senderId} senderName={currentConversation.guide.name} senderAvatar={currentConversation.guide.avatar} index={i} messages={messages} isExpanded={expandedMessageId === m.id} onToggle={() => setExpandedMessageId(expandedMessageId === m.id ? null : m.id)} />
+                                    ))}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                                <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-800">
+                                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                                        <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-sm" />
+                                        <button type="submit" disabled={!newMessage.trim()} className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send className="w-5 h-5" /></button>
+                                    </form>
+                                </div>
+                            </>
+                        ) : <div className="h-full flex items-center justify-center text-gray-500">Pick a chat to start</div>}
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     )
 }

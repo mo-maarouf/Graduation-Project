@@ -65,6 +65,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // We normalize to uppercase for consistency in the frontend.
 const normalizeUser = (raw: MeResponse): User => ({
   ...raw,
+  userId: raw.userId?.toString(),
+  travelerProfileId: raw.travelerProfileId?.toString(),
+  guideProfileId: raw.guideProfileId?.toString(),
   role: raw.role.toUpperCase() as User['role'],
 });
 

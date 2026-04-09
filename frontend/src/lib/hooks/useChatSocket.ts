@@ -1,0 +1,56 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { Client } from '@stomp/stompjs'
+import SockJS from 'sockjs-client'
+import { MessageResponse } from '../api/chat'
+import { getAccessToken } from '../api/client'
+
+export const useChatSocket = (conversationId: number | null, onMessageReceived: (message: MessageResponse) => void) => {
+  const stompClientRef = useRef<Client | null>(null)
+  const [connected, setConnected] = useState(false)
+
+  useEffect(() => {
+    if (!conversationId) return
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS(`${process.env.NEXT_PUBLIC_API_URL}/ws-chat`),
+      connectHeaders: {
+        Authorization: `Bearer ${getAccessToken()}`
+      },
+      debug: (str) => {
+        console.log('STOMP: ' + str)
+      },
+      onConnect: () => {
+        console.log('Connected to WebSocket')
+        setConnected(true)
+        
+        client.subscribe(`/topic/chat/${conversationId}`, (message) => {
+          if (message.body) {
+            const receivedMessage = JSON.parse(message.body) as MessageResponse
+            onMessageReceived(receivedMessage)
+          }
+        })
+      },
+      onStompError: (frame) => {
+        console.error('Broker reported error: ' + frame.headers['message'])
+        console.error('Additional details: ' + frame.body)
+      },
+      onDisconnect: () => {
+        console.log('Disconnected from WebSocket')
+        setConnected(false)
+      }
+    })
+
+    client.activate()
+    stompClientRef.current = client
+
+    return () => {
+      if (stompClientRef.current) {
+        stompClientRef.current.deactivate()
+      }
+    }
+  }, [conversationId]) // Re-subscribe if conversationId changes
+
+  return { connected }
+}

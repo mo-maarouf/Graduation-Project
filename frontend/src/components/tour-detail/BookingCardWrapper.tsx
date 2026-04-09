@@ -12,9 +12,13 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import Portal from '@/src/components/ui/Portal'
 import { BookingStatus, PublicActiveBookingResponse, PublicActiveWaitlistResponse } from '@/src/lib/types/tour.types'
 import { leaveWaitlist } from '@/src/lib/api/tours'
+import { chatApi } from '@/src/lib/api/chat'
 
 interface BookingCardWrapperProps {
   tourId: string
+  tourTitle: string
+  guideId: string
+  guideName: string
   basePrice: number
   currency: string
   minCapacity: number
@@ -45,6 +49,9 @@ export default function BookingCardWrapper({
   minCapacity,
   maxCapacity,
   bookingMode,
+  tourTitle,
+  guideId,
+  guideName,
   occurrences,
   waitlistCount,
   isWaitlistAvailable,
@@ -356,6 +363,44 @@ export default function BookingCardWrapper({
       setSelectedBookingForCancel(null)
     }
   }
+  
+  const handleMessageGuide = async (date?: string) => {
+    if (!user) {
+      toast.error('Please login to message the guide')
+      router.push(`/auth/login?redirect=/tours/${tourId}`)
+      return
+    }
+
+    if (user.role === 'GUIDE' && user.userId === guideId) {
+      toast.error("You can't message yourself!")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      let dateContext = ''
+      if (date) {
+        const formattedDate = new Date(date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })
+        dateContext = ` for the date ${formattedDate}`
+      }
+      const res = await chatApi.sendMessage({
+        tourId: parseInt(tourId),
+        content: `Hi ${guideName}, I have a question about the tour "${tourTitle}"${dateContext}.`
+      })
+      toast.success('Conversation started!')
+      router.push(`/dashboard/traveler/messages?id=${res.conversationId}`)
+    } catch (err) {
+      console.error('Failed to start conversation:', err)
+      toast.error('Could not start conversation')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Default cancellation policy if missing
   const policy = cancellationPolicy || {
@@ -392,6 +437,7 @@ export default function BookingCardWrapper({
         activeBookings={activeBookings}
         activeWaitlistEntries={activeWaitlistEntries}
         isLoading={isLoading}
+        onMessageGuide={handleMessageGuide}
       />
 
       {showCancelModal && selectedBookingForCancel && (

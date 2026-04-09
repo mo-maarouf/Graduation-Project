@@ -261,6 +261,8 @@ export default async function TourDetailPage({ params}:PageProps ) {
                                 totalReviews: tour.reviewCount || 0,
                                 languages: tourLanguages
                             }}
+                            tourId={tour.id}
+                            tourTitle={tour.title}
                         />
 
                         <ReviewList
@@ -288,6 +290,9 @@ export default async function TourDetailPage({ params}:PageProps ) {
                         <div className="sticky top-24">
                             <BookingCardWrapper
                                 tourId={tour.id.toString()}
+                                tourTitle={tour.title}
+                                guideId={tour.guideId.toString()}
+                                guideName={tour.guideDisplayName}
                                 basePrice={tour.basePrice}
                                 currency={tour.currency}
                                 minCapacity={tour.minCapacity}

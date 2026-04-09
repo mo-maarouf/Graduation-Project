@@ -19,6 +19,7 @@
 // ✓ Message history with travelers
 // ✓ Unread indicators
 // ✓ Booking context in conversations
+// ✓ WhatsApp-style message details (click to see time)
 // ============================================================================
 
 'use client'
@@ -27,6 +28,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { chatApi, ConversationResponse, MessageResponse } from '@/src/lib/api/chat'
+import { useAuth } from '@/src/lib/contexts/AuthContext'
+import { useChatSocket } from '@/src/lib/hooks/useChatSocket'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare,
   Send,
@@ -42,6 +48,7 @@ import {
   Shield,
   CheckCircle,
   Clock,
+  Lock,
   User,
   Users,
   Flag,
@@ -70,6 +77,7 @@ type BookingStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled'
 
 interface Traveler {
   id: string
+  profileId: string
   name: string
   avatar?: string
   email: string
@@ -105,6 +113,7 @@ interface Message {
   isFlagged: boolean
   flagReason?: string
   hasBlurredContent: boolean
+  hasSuspiciousContent: boolean
   attachments?: {
     id: string
     type: 'image' | 'file'
@@ -136,6 +145,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     id: 'conv-1',
     traveler: {
       id: 'trav-123',
+      profileId: '123',
       name: 'Ahmed Khan',
       avatar: '/images/travelers/ahmed.jpg',
       email: 'ahmed.khan@example.com',
@@ -167,7 +177,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
       status: 'delivered',
       isFlagged: true,
       flagReason: 'Phone number detected',
-      hasBlurredContent: true
+      hasBlurredContent: true,
+      hasSuspiciousContent: true
     },
     unreadCount: 2,
     status: 'active',
@@ -179,6 +190,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     id: 'conv-2',
     traveler: {
       id: 'trav-456',
+      profileId: '456',
       name: 'Fatima Al-Zahra',
       avatar: '/images/travelers/fatima.jpg',
       email: 'fatima.z@example.com',
@@ -209,7 +221,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
       timestamp: '2026-03-13T14:15:00Z',
       status: 'read',
       isFlagged: false,
-      hasBlurredContent: false
+      hasBlurredContent: false,
+      hasSuspiciousContent: false
     },
     unreadCount: 0,
     status: 'active',
@@ -221,6 +234,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     id: 'conv-3',
     traveler: {
       id: 'trav-789',
+      profileId: '789',
       name: 'Omar Farooq',
       email: 'omar.f@example.com',
       phone: '+90 555 333 4455',
@@ -250,7 +264,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
       status: 'delivered',
       isFlagged: true,
       flagReason: 'Email address detected',
-      hasBlurredContent: true
+      hasBlurredContent: true,
+      hasSuspiciousContent: true
     },
     unreadCount: 1,
     status: 'active',
@@ -262,6 +277,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     id: 'conv-4',
     traveler: {
       id: 'trav-101',
+      profileId: '101',
       name: 'Layla Hassan',
       avatar: '/images/travelers/layla.jpg',
       email: 'layla.h@example.com',
@@ -292,7 +308,8 @@ const MOCK_CONVERSATIONS: Conversation[] = [
       timestamp: '2026-03-11T16:45:00Z',
       status: 'read',
       isFlagged: false,
-      hasBlurredContent: false
+      hasBlurredContent: false,
+      hasSuspiciousContent: false
     },
     unreadCount: 0,
     status: 'active',
@@ -301,118 +318,6 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     updatedAt: '2026-03-11T16:45:00Z'
   }
 ]
-
-const MOCK_MESSAGES: Record<string, Message[]> = {
-  'conv-1': [
-    {
-      id: 'msg-1',
-      conversationId: 'conv-1',
-      senderId: 'trav-123',
-      senderName: 'Ahmed Khan',
-      senderAvatar: '/images/travelers/ahmed.jpg',
-      content: "Hi Mehmet! I'm excited about the Ottoman tour. Is it suitable for children? We have two kids aged 8 and 10.",
-      timestamp: '2026-03-13T10:15:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-2',
-      conversationId: 'conv-1',
-      senderId: 'guide-123',
-      senderName: 'Mehmet Yilmaz',
-      content: "Hello Ahmed! Yes, it's very family-friendly. Kids especially love the Topkapi Palace treasury rooms with all the jewels! I've guided many families with children that age.",
-      timestamp: '2026-03-13T10:25:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-3',
-      conversationId: 'conv-1',
-      senderId: 'trav-123',
-      senderName: 'Ahmed Khan',
-      content: "Perfect! I'll meet you at the fountain. My phone is +90 555 111 2233 if anything changes.",
-      timestamp: '2026-03-14T09:30:00Z',
-      status: 'delivered',
-      isFlagged: true,
-      flagReason: 'Phone number detected',
-      hasBlurredContent: true
-    }
-  ],
-  'conv-2': [
-    {
-      id: 'msg-4',
-      conversationId: 'conv-2',
-      senderId: 'trav-456',
-      senderName: 'Fatima Al-Zahra',
-      senderAvatar: '/images/travelers/fatima.jpg',
-      content: "Salam Mehmet! I'm interested in the tour but I have dietary restrictions. Are there vegetarian options available?",
-      timestamp: '2026-03-12T14:00:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-5',
-      conversationId: 'conv-2',
-      senderId: 'guide-123',
-      senderName: 'Mehmet Yilmaz',
-      content: "Wa alaikum salam Fatima! Yes, absolutely. The restaurant we visit has excellent vegetarian options. I'll make sure to notify them in advance.",
-      timestamp: '2026-03-12T14:10:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-6',
-      conversationId: 'conv-2',
-      senderId: 'trav-456',
-      senderName: 'Fatima Al-Zahra',
-      content: "That's wonderful, thank you! Also, is there a prayer space nearby?",
-      timestamp: '2026-03-13T14:05:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-7',
-      conversationId: 'conv-2',
-      senderId: 'guide-123',
-      senderName: 'Mehmet Yilmaz',
-      content: "Of course! There's a small masjid just 5 minutes from the restaurant. I always include a prayer break in the itinerary for Muslim travelers.",
-      timestamp: '2026-03-13T14:15:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    }
-  ],
-  'conv-3': [
-    {
-      id: 'msg-8',
-      conversationId: 'conv-3',
-      senderId: 'trav-789',
-      senderName: 'Omar Farooq',
-      content: "Hi, I'd like to book the Cappadocia tour for 2 people on March 20th. Is it still available?",
-      timestamp: '2026-03-11T11:00:00Z',
-      status: 'read',
-      isFlagged: false,
-      hasBlurredContent: false
-    },
-    {
-      id: 'msg-9',
-      conversationId: 'conv-3',
-      senderId: 'trav-789',
-      senderName: 'Omar Farooq',
-      content: "Can we pay via bank transfer instead? omar.farooq@email.com",
-      timestamp: '2026-03-12T11:20:00Z',
-      status: 'delivered',
-      isFlagged: true,
-      flagReason: 'Email address detected',
-      hasBlurredContent: true
-    }
-  ]
-}
 
 // ============================================================================
 // REGEX PATTERNS FOR CONTENT BLURRING
@@ -443,19 +348,15 @@ interface MessageContentProps {
   content: string
   isFlagged: boolean
   hasBlurredContent: boolean
+  hasSuspiciousContent: boolean
   bookingConfirmed: boolean
 }
 
-function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirmed }: MessageContentProps) {
+function MessageContent({ content, isFlagged, hasBlurredContent, hasSuspiciousContent, bookingConfirmed }: MessageContentProps) {
   const [showBlurred, setShowBlurred] = useState(false)
 
-  // If booking is confirmed, always show content
-  const shouldBlur = !bookingConfirmed && hasBlurredContent && !showBlurred
-
-  // Check for suspicious keywords
-  const hasSuspiciousContent = SUSPICIOUS_KEYWORDS.some(keyword => 
-    content.toLowerCase().includes(keyword.toLowerCase())
-  )
+  // If booking is confirmed, always show content unless it's suspicious
+  const shouldBlur = (hasBlurredContent && !bookingConfirmed && !showBlurred) || (hasSuspiciousContent && !showBlurred)
 
   // Apply regex highlighting
   const highlightContent = (text: string) => {
@@ -499,22 +400,29 @@ function MessageContent({ content, isFlagged, hasBlurredContent, bookingConfirme
       {/* Blur overlay */}
       {shouldBlur && (
         <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-gray-900/50 rounded flex items-center justify-center z-10">
-          <button
-            onClick={() => setShowBlurred(true)}
-            className="
-              flex items-center gap-1
-              px-2 py-1
-              bg-gray-900 dark:bg-white
-              text-white dark:text-gray-900
-              text-xs font-medium
-              rounded
-              opacity-0 group-hover:opacity-100
-              transition-opacity
-            "
-          >
-            <Eye className="w-3 h-3" />
-            Reveal contact info
-          </button>
+          {hasSuspiciousContent ? (
+            <span className="flex items-center gap-1 px-2 py-1 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider rounded">
+              <Lock className="w-3 h-3" />
+              Payment Info Locked
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowBlurred(true)}
+              className="
+                flex items-center gap-1
+                px-2 py-1
+                bg-gray-900 dark:bg-white
+                text-white dark:text-gray-900
+                text-xs font-medium
+                rounded
+                opacity-0 group-hover:opacity-100
+                transition-opacity
+              "
+            >
+              <Eye className="w-3 h-3" />
+              Reveal contact info
+            </button>
+          )}
         </div>
       )}
 
@@ -564,22 +472,56 @@ function TravelerAvatar({ traveler, size = 'md' }: TravelerAvatarProps) {
     lg: 'w-12 h-12'
   }
 
-  const tierColors = {
-    bronze: 'bg-amber-100 text-amber-700 border-amber-300',
-    silver: 'bg-gray-100 text-gray-700 border-gray-300',
-    gold: 'bg-amber-100 text-amber-700 border-amber-400',
-    platinum: 'bg-blue-100 text-blue-700 border-blue-400'
+  interface TierStyle {
+    border: string
+    badge: string
+    icon?: React.ReactNode
+    label?: string
   }
+
+  const tierStyles: Record<string, TierStyle> = {
+    bronze: {
+      border: 'border-amber-700/40',
+      badge: 'bg-amber-100 text-amber-700 border-amber-300',
+      icon: <Award className="w-2.5 h-2.5" />
+    },
+    silver: {
+      border: 'border-gray-400/50',
+      badge: 'bg-gray-100 text-gray-700 border-gray-300',
+      label: 'S'
+    },
+    gold: {
+      border: 'border-amber-400',
+      badge: 'bg-amber-100 text-amber-700 border-amber-400',
+      label: 'G'
+    },
+    platinum: {
+      border: 'border-blue-400',
+      badge: 'bg-blue-100 text-blue-700 border-blue-400',
+      label: 'P'
+    }
+  }
+
+  const currentStyle = traveler.loyaltyTier ? tierStyles[traveler.loyaltyTier] : null
 
   return (
     <div className="relative flex-shrink-0">
-      <div className={`${sizeClasses[size]} rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden`}>
+      <div className={`
+        ${sizeClasses[size]} 
+        rounded-full 
+        bg-gray-200 dark:bg-gray-800 
+        overflow-hidden 
+        aspect-square
+        border-2
+        ${currentStyle?.border || 'border-transparent'}
+        shadow-sm
+      `}>
         {traveler.avatar ? (
           <Image
             src={traveler.avatar}
             alt={traveler.name}
             fill
-            className="object-cover"
+            className="object-cover rounded-full"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -597,11 +539,14 @@ function TravelerAvatar({ traveler, size = 'md' }: TravelerAvatarProps) {
           border-2 border-white dark:border-gray-900
           flex items-center justify-center
           text-[8px] font-bold
-          ${tierColors[traveler.loyaltyTier]}
+          shadow-sm
+          ${currentStyle?.badge}
         `}>
-          {traveler.loyaltyTier === 'gold' ? 'G' : 
-           traveler.loyaltyTier === 'platinum' ? 'P' :
-           traveler.loyaltyTier === 'silver' ? 'S' : 'B'}
+          {traveler.loyaltyTier === 'bronze' ? (
+            currentStyle?.icon
+          ) : (
+            currentStyle?.label
+          )}
         </div>
       )}
     </div>
@@ -619,6 +564,7 @@ interface ConversationItemProps {
 }
 
 function ConversationItem({ conversation, isActive, onClick }: ConversationItemProps) {
+  const { user } = useAuth()
   const lastMessage = conversation.lastMessage
   const time = new Date(lastMessage.timestamp).toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -674,7 +620,7 @@ function ConversationItem({ conversation, isActive, onClick }: ConversationItemP
 
           {/* Last message preview */}
           <div className="flex items-center gap-1 text-sm">
-            {lastMessage.senderId === 'guide-123' && (
+            {lastMessage.senderId === user?.userId && (
               <span className="text-xs text-gray-400">You: </span>
             )}
             <p className="flex-1 text-xs text-gray-600 dark:text-gray-400 truncate">
@@ -724,112 +670,121 @@ interface MessageBubbleProps {
   message: Message
   isOwn: boolean
   bookingConfirmed: boolean
-  showAvatar?: boolean
-  travelerName?: string
+  showAvatar: boolean
+  travelerName: string
   travelerAvatar?: string
+  index: number
+  messages: Message[]
+  isExpanded: boolean
+  onToggle: () => void
 }
 
 function MessageBubble({ 
   message, 
   isOwn, 
   bookingConfirmed, 
-  showAvatar = true,
-  travelerName,
-  travelerAvatar 
+  showAvatar, 
+  travelerName, 
+  travelerAvatar,
+  index,
+  messages,
+  isExpanded,
+  onToggle
 }: MessageBubbleProps) {
   const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: true
   })
 
   return (
-    <div className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      {showAvatar && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-          {isOwn ? (
-            <div className="w-full h-full flex items-center justify-center bg-blue-600">
-              <User className="w-4 h-4 text-white" />
-            </div>
-          ) : travelerAvatar ? (
-            <Image
-              src={travelerAvatar}
-              alt={travelerName || ''}
-              fill
-              className="object-cover"
+    <div className={`flex items-end gap-2 w-full max-w-[85%] ${isOwn ? 'ml-auto flex-row-reverse' : ''}`}>
+      {/* Avatar block */}
+      {!isOwn ? (
+        <div className="flex-shrink-0 w-8">
+          {showAvatar && (
+            <TravelerAvatar 
+              traveler={{ 
+                id: message.senderId, 
+                profileId: '', // placeholder
+                name: travelerName, 
+                avatar: travelerAvatar, 
+                email: '', 
+                totalTrips: 0, 
+                loyaltyTier: 'bronze' 
+              }} 
+              size="sm" 
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <User className="w-4 h-4 text-gray-400" />
-            </div>
           )}
         </div>
+      ) : (
+        <div className="flex-shrink-0 w-8" />
       )}
 
-      {/* Message */}
-      <div className={`flex-1 max-w-[70%] ${isOwn ? 'text-right' : ''}`}>
-        {/* Sender name */}
-        {!isOwn && showAvatar && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+      {/* Message content block */}
+      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} min-w-0`}>
+        {/* Sender name - Only show on the first message of a block when not own */}
+        {!isOwn && (index === 0 || messages[index - 1]?.senderId !== message.senderId) && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 ml-1">
             {travelerName}
           </p>
         )}
 
-        {/* Message content */}
-        <div className={`
-          inline-block max-w-full
-          p-3
-          rounded-2xl
-          ${isOwn 
-            ? 'bg-blue-600 dark:bg-blue-700 text-white' 
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-          }
-        `}>
+        <div 
+          onClick={onToggle}
+          className={`
+            relative p-3 rounded-2xl text-sm transition-all cursor-pointer
+            ${isOwn 
+              ? 'bg-blue-600 text-white rounded-tr-none shadow-md hover:bg-blue-700' 
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-none hover:bg-gray-200 dark:hover:bg-gray-700'}
+            ${isExpanded ? 'shadow-lg scale-[1.01]' : ''}
+          `}
+        >
           <MessageContent
             content={message.content}
             isFlagged={message.isFlagged}
             hasBlurredContent={message.hasBlurredContent}
+            hasSuspiciousContent={message.hasSuspiciousContent}
             bookingConfirmed={bookingConfirmed}
           />
         </div>
 
-        {/* Attachments */}
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mt-2 space-y-2">
-            {message.attachments.map((att) => (
-              <div
-                key={att.id}
-                className="
-                  flex items-center gap-2
-                  p-2
-                  bg-gray-50 dark:bg-gray-800
-                  rounded-lg
-                  text-sm
-                "
-              >
-                <Paperclip className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-700 dark:text-gray-300">{att.name}</span>
-                {att.size && (
-                  <span className="text-xs text-gray-500">
-                    ({(att.size / 1024).toFixed(1)} KB)
-                  </span>
-                )}
+        {/* Timestamp section */}
+        {(showAvatar || isExpanded) && (
+          <motion.div 
+            initial={false}
+            animate={{ height: isExpanded ? 'auto' : '1.25rem', opacity: 1 }}
+            className={`flex flex-col mt-0.5 ${isOwn ? 'items-end' : 'items-start'}`}
+          >
+            {!isExpanded ? (
+              <div className={`flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
+                 <span>{time}</span>
+                 {isOwn && message.status === 'read' && (
+                   <CheckCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                 )}
               </div>
-            ))}
-          </div>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
+              >
+                <div className="flex items-center gap-1">
+                   <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                     {new Date(message.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} • {time}
+                   </span>
+                   {isOwn && message.status === 'read' && (
+                     <CheckCircle className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
+                   )}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
         )}
-
-        {/* Timestamp and status */}
-        <div className={`flex items-center gap-1 mt-1 text-xs text-gray-500 dark:text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
-          <span>{time}</span>
-          {isOwn && message.status === 'read' && (
-            <CheckCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-          )}
-          {isOwn && message.status === 'delivered' && (
-            <CheckCircle className="w-3 h-3 text-gray-400" />
-          )}
-        </div>
       </div>
+
+      {/* Right spacer for own messages to match the left avatar column width */}
+      {isOwn && <div className="flex-shrink-0 w-8" />}
     </div>
   )
 }
@@ -843,13 +798,14 @@ interface BookingInfoCardProps {
 }
 
 function BookingInfoCard({ booking }: BookingInfoCardProps) {
-  const date = new Date(`${booking.date}T${booking.time}`)
-  const formattedDate = date.toLocaleDateString('en-US', {
+  const dateStr = booking.date && booking.time ? `${booking.date}T${booking.time}` : ''
+  const date = dateStr ? new Date(dateStr) : null
+  const formattedDate = date && !isNaN(date.getTime()) ? date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     year: 'numeric'
-  })
+  }) : booking.date
 
   const statusColors = {
     confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -898,7 +854,7 @@ function BookingInfoCard({ booking }: BookingInfoCardProps) {
               text-xs font-medium
               rounded-full
               border
-              ${statusColors[booking.status]}
+              ${statusColors[booking.status as keyof typeof statusColors] || statusColors.pending}
             `}>
               {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
             </span>
@@ -926,14 +882,7 @@ function SafetyInfoPanel() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="
-          p-1.5
-          text-gray-500 hover:text-gray-700
-          dark:text-gray-400 dark:hover:text-gray-200
-          rounded-lg
-          hover:bg-gray-100 dark:hover:bg-gray-800
-          transition-colors
-        "
+        className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         aria-label="Safety information"
       >
         <Info className="w-4 h-4" />
@@ -1059,13 +1008,7 @@ function EmptyChatState() {
   return (
     <div className="h-full flex items-center justify-center bg-white dark:bg-gray-900">
       <div className="text-center px-4">
-        <div className="
-          w-20 h-20
-          mx-auto mb-4
-          bg-blue-50 dark:bg-blue-950/30
-          rounded-full
-          flex items-center justify-center
-        ">
+        <div className="w-20 h-20 mx-auto mb-4 bg-blue-50 dark:bg-blue-950/30 rounded-full flex items-center justify-center">
           <MessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
         </div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -1084,67 +1027,210 @@ function EmptyChatState() {
 // ============================================================================
 
 export default function GuideMessagingPage() {
-  const [selectedConversation, setSelectedConversation] = React.useState<string | null>('null')
+  const searchParams = useSearchParams()
+  const initialConvoId = searchParams.get('id')
+  const initialTourId = searchParams.get('tourId')
+  const initialBookingId = searchParams.get('bookingId')
+
+  const { user } = useAuth()
+  const [selectedConversation, setSelectedConversation] = React.useState<string | null>(null)
   const [showMobileList, setShowMobileList] = React.useState(true)
-  const [newMessage, setNewMessage] = React.useState('')
-  const [searchTerm, setSearchTerm] = React.useState('')
+  const [isLoadingConvs, setIsLoadingConvs] = React.useState(true)
+  const [isLoadingMsgs, setIsLoadingMsgs] = React.useState(false)
+  const [expandedMessageId, setExpandedMessageId] = React.useState<string | null>(null)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
 
+  const [realConvs, setRealConvs] = React.useState<ConversationResponse[]>([])
+  const [realMsgs, setRealMsgs] = React.useState<MessageResponse[]>([])
+  const [newMessage, setNewMessage] = React.useState('')
+  const [searchTerm, setSearchTerm] = React.useState('')
+
   useBadgeReset('guide-messages')
 
-  const currentConversation = selectedConversation 
-    ? MOCK_CONVERSATIONS.find(c => c.id === selectedConversation)
-    : null
-  const messages = selectedConversation ? MOCK_MESSAGES[selectedConversation] || [] : []
+  React.useEffect(() => {
+    if (!user) return
+    
+    const loadConversations = async () => {
+      setIsLoadingConvs(true)
+      try {
+        const convs = await chatApi.getConversations()
+        setRealConvs(convs)
 
-  // Filter conversations based on search
-  const filteredConversations = MOCK_CONVERSATIONS.filter(conv => {
+        // Handle direct redirection from bookings
+        if (initialConvoId) {
+          setSelectedConversation(initialConvoId)
+          setShowMobileList(false)
+        } else if (initialTourId) {
+          try {
+             const newConv = await chatApi.initiateConversation({
+                tourId: parseInt(initialTourId),
+                bookingId: initialBookingId ? parseInt(initialBookingId) : undefined
+             })
+             
+             setRealConvs(prev => {
+                if (prev.some(c => c.id === newConv.id)) return prev
+                return [newConv, ...prev]
+             })
+             setSelectedConversation(newConv.id.toString())
+             setShowMobileList(false)
+          } catch (e) {
+             console.error('Failed to initiate:', e)
+          }
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setIsLoadingConvs(false)
+      }
+    }
+
+    loadConversations()
+  }, [user, initialConvoId, initialTourId, initialBookingId])
+
+  React.useEffect(() => {
+    if (selectedConversation) {
+      setIsLoadingMsgs(true)
+      chatApi.getMessages(parseInt(selectedConversation))
+        .then(msgs => {
+          const unique = Array.from(new Map(msgs.map(m => [String(m.id), m])).values())
+          setRealMsgs(unique)
+        })
+        .catch(console.error)
+        .finally(() => setIsLoadingMsgs(false))
+    } else {
+      setRealMsgs([])
+    }
+  }, [selectedConversation])
+
+  useChatSocket(
+    selectedConversation ? parseInt(selectedConversation) : null,
+    React.useCallback((receivedMsg: MessageResponse) => {
+      // Update messages list
+      setRealMsgs(prev => {
+        const exists = prev.some(m => String(m.id) === String(receivedMsg.id))
+        if (exists) return prev
+        return [...prev, receivedMsg]
+      })
+
+      // Update conversations list timestamp for real-time sorting
+      setRealConvs(prev => prev.map(c => 
+        c.id === receivedMsg.conversationId 
+        ? { ...c, updatedAtUtc: receivedMsg.createdAtUtc } 
+        : c
+      ).sort((a, b) => new Date(b.updatedAtUtc).getTime() - new Date(a.updatedAtUtc).getTime()))
+    }, [])
+  )
+
+  const mappedConvs: Conversation[] = realConvs.map(c => {
+    const timeStr = c.updatedAtUtc ? (c.updatedAtUtc.endsWith('Z') ? c.updatedAtUtc : c.updatedAtUtc + 'Z') : new Date().toISOString()
+    
+    let bookingDate = ''
+    let bookingTime = ''
+    if (c.bookingStartTimeUtc) {
+        const date = new Date(c.bookingStartTimeUtc)
+        bookingDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        bookingTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    }
+
+    return {
+      id: c.id.toString(),
+      traveler: { 
+        id: c.travelerId.toString(), 
+        profileId: c.travelerProfileId?.toString() || c.travelerId.toString(),
+        name: c.travelerName, 
+        avatar: c.travelerAvatarUrl,
+        email: '', 
+        isVerified: true, 
+        totalTrips: c.travelerTripsCount || 0,
+        loyaltyTier: (c.travelerLoyaltyTier ? c.travelerLoyaltyTier.toLowerCase() as any : 'bronze')
+      },
+      lastMessage: { id: `last-${c.id}`, conversationId: c.id.toString(), senderId: '', senderName: '', content: c.lastMessageContent || 'Tap to view messages...', timestamp: timeStr, status: 'read', isFlagged: false, hasBlurredContent: false, hasSuspiciousContent: false },
+      unreadCount: 0, status: 'active', safetyLevel: 'safe', bookingConfirmed: c.bookingStatus === 'Confirmed' || c.bookingStatus === 'Completed', updatedAt: timeStr,
+      booking: { 
+        id: c.bookingId?.toString() || '', 
+        tourId: c.tourId.toString(), 
+        tourTitle: c.tourTitle, 
+        date: bookingDate, 
+        time: bookingTime, 
+        peopleCount: c.peopleCount || 1, 
+        totalPrice: c.totalPrice || 0, 
+        currency: c.currency || 'USD', 
+        status: (c.bookingStatus ? c.bookingStatus.toLowerCase() as BookingStatus : 'pending') 
+      }
+    }
+  })
+
+  const currentConversation = selectedConversation 
+    ? mappedConvs.find(c => c.id === selectedConversation) || null
+    : null
+
+  const messages: Message[] = realMsgs.map(m => {
+    const hasPII = EMAIL_REGEX.test(m.content) || PHONE_REGEX.test(m.content)
+    const hasSuspicion = SUSPICIOUS_KEYWORDS.some(kw => m.content.toLowerCase().includes(kw.toLowerCase()))
+
+    return {
+      id: m.id.toString(),
+      conversationId: m.conversationId.toString(),
+      senderId: m.senderId.toString(),
+      senderName: m.senderName,
+      content: m.content,
+      timestamp: m.createdAtUtc ? (m.createdAtUtc.endsWith('Z') ? m.createdAtUtc : m.createdAtUtc + 'Z') : new Date().toISOString(),
+      status: 'read',
+      isFlagged: false,
+      hasBlurredContent: hasPII,
+      hasSuspiciousContent: hasSuspicion
+    }
+  })
+
+  const filteredConversations = mappedConvs.filter(conv => {
+    const hasMessages = conv.lastMessage && conv.lastMessage.content !== 'Tap to view messages...'
+    const isSelected = selectedConversation === conv.id
+    
+    if (!hasMessages && !isSelected) return false
+
     if (!searchTerm) return true
     const term = searchTerm.toLowerCase()
     return (
       conv.traveler.name.toLowerCase().includes(term) ||
-      conv.booking?.tourTitle.toLowerCase().includes(term) ||
+      (conv.booking?.tourTitle.toLowerCase() || '').includes(term) ||
       conv.lastMessage.content.toLowerCase().includes(term)
     )
   })
 
   const isInitialMount = React.useRef(true)
 
-// Scroll to bottom when changing conversations (clicking on a chat)
-React.useEffect(() => {
-  // Skip on initial mount
-  if (isInitialMount.current) {
-    isInitialMount.current = false
-    return
-  }
-
-  // Scroll to bottom when switching to a new conversation
-  if (selectedConversation && messagesEndRef.current) {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100) // Small delay to ensure messages are rendered
-  }
-}, [selectedConversation]) // Only trigger when selectedConversation changes
-
-// Optional: Also scroll when new messages arrive (if you want)
-useEffect(() => {
-  if (messages.length > 0 && scrollContainerRef.current && selectedConversation) {
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-    if (isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  useEffect(() => {
+    if (selectedConversation && messages.length > 0) {
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      }, 50)
+      return () => clearTimeout(timer)
     }
-  }
-}, [messages]) // Only trigger when messages change
+  }, [selectedConversation])
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (selectedConversation && messages.length > 0) {
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [messages.length])
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || !selectedConversation) return
 
-    // In Phase 4: Send message via API
-    console.log('Sending message:', newMessage)
-    setNewMessage('')
+    try {
+      await chatApi.sendMessage({
+        conversationId: parseInt(selectedConversation),
+        content: newMessage
+      })
+      setNewMessage('')
+    } catch (error) {
+      console.error('Failed to send:', error)
+    }
   }
 
   const handleQuickReply = (text: string) => {
@@ -1153,18 +1239,11 @@ useEffect(() => {
 
   const handleFlagMessage = (messageId: string) => {
     console.log('Flag message:', messageId)
-    // In Phase 4: Report message to admin
   }
 
   return (
-    <>
-      {/* Main container - exactly viewport height minus navbar, no overflow, if you want the page to be for you need to controll this sm:h-[calc(100vh-4rem-5px)] in this measures the footer appear and without scroll bar because you are subtracting from height  */}
-      <div className="pt-14 sm:pt-16 h-[calc(100vh)] sm:h-[calc(100vh)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
-        
-        {/* Inner container - fills remaining height, no overflow */}
+    <div className="h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
         <div className="h-full flex flex-col overflow-hidden">
-          
-          {/* Header - Fixed at top */}
           <div className="flex-none bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1172,42 +1251,20 @@ useEffect(() => {
                 <h1 className="text-lg font-bold text-gray-900 dark:text-white">
                   Messages
                 </h1>
-                <span className="
-                  px-2 py-0.5
-                  bg-blue-100 dark:bg-blue-900/30
-                  text-blue-700 dark:text-blue-300
-                  text-xs font-medium
-                  rounded-full
-                ">
-                  {MOCK_CONVERSATIONS.reduce((acc, c) => acc + c.unreadCount, 0)} unread
+                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+                  {mappedConvs.reduce((acc, c) => acc + c.unreadCount, 0)} unread
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <SafetyInfoPanel />
-                <button className="
-                  p-2
-                  text-gray-500 hover:text-gray-700
-                  dark:text-gray-400 dark:hover:text-gray-200
-                  rounded-lg
-                  hover:bg-gray-100 dark:hover:bg-gray-800
-                  transition-colors
-                ">
+                <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <Filter className="w-4 h-4" />
                 </button>
-                <button className="
-                  p-2
-                  text-gray-500 hover:text-gray-700
-                  dark:text-gray-400 dark:hover:text-gray-200
-                  rounded-lg
-                  hover:bg-gray-100 dark:hover:bg-gray-800
-                  transition-colors
-                ">
+                <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
             </div>
-
-            {/* Search */}
             <div className="relative mt-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -1215,32 +1272,27 @@ useEffect(() => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search conversations..."
-                className="
-                  w-full
-                  pl-9 pr-4 py-2
-                  bg-gray-100 dark:bg-gray-800
-                  border border-gray-200 dark:border-gray-700
-                  rounded-lg
-                  text-sm
-                  text-gray-900 dark:text-white
-                  placeholder-gray-500 dark:placeholder-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                "
+                className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
           </div>
 
-          {/* Main messaging area - flex-1 with overflow-hidden */}
           <div className="flex-1 flex min-h-0 overflow-hidden bg-white dark:bg-gray-900">
-            
-            {/* Conversation list - Fixed width, scrollable */}
-            <div className={`
-              w-full sm:w-80 border-r border-gray-200 dark:border-gray-800
-              flex flex-col overflow-hidden
-              ${showMobileList ? 'block' : 'hidden sm:block'}
-            `}>
+            <div className={`w-full sm:w-80 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden ${showMobileList ? 'block' : 'hidden sm:block'}`}>
               <div className="flex-1 overflow-y-auto">
-                {filteredConversations.length > 0 ? (
+                {isLoadingConvs ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="p-4 border-b border-gray-100 dark:border-gray-800 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full" />
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2" />
+                          <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-2/3" />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : filteredConversations.length > 0 ? (
                   filteredConversations.map((conv) => (
                     <ConversationItem
                       key={conv.id}
@@ -1263,37 +1315,29 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Chat area - Takes remaining width, handles overflow properly */}
-            <div className={`
-              flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-gray-900
-              ${!showMobileList ? 'block' : 'hidden sm:block'}
-            `}>
+            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-gray-900 ${!showMobileList ? 'block' : 'hidden sm:block'}`}>
               {selectedConversation && currentConversation ? (
                 <>
-                  {/* Chat header - Fixed */}
                   <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
                     <div className="flex items-center gap-3 min-w-0">
-                      {/* Back button - mobile only */}
                       <button
                         onClick={() => setShowMobileList(true)}
                         className="sm:hidden p-1 text-gray-500 hover:text-gray-700"
                       >
                         <ChevronLeft className="w-5 h-5" />
                       </button>
-
-                      {/* Traveler info */}
-                      <TravelerAvatar traveler={currentConversation.traveler} size="sm" />
-                      <div className="min-w-0">
-                        <h2 className="font-semibold text-gray-900 dark:text-white truncate">
-                          {currentConversation.traveler.name}
-                        </h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {currentConversation.traveler.totalTrips} trips • {currentConversation.traveler.loyaltyTier} tier
-                        </p>
-                      </div>
+                      <Link href={`/travelers/${currentConversation.traveler.profileId}`} className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity">
+                        <TravelerAvatar traveler={currentConversation.traveler} size="sm" />
+                        <div className="min-w-0">
+                          <h2 className="font-semibold text-gray-900 dark:text-white truncate">
+                            {currentConversation.traveler.name}
+                          </h2>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {currentConversation.traveler.totalTrips} trips • {currentConversation.traveler.loyaltyTier}
+                          </p>
+                        </div>
+                      </Link>
                     </div>
-
-                    {/* Safety indicator */}
                     {currentConversation.safetyLevel === 'suspicious' && (
                       <div className="flex-none px-2 py-1 bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-lg flex items-center gap-1">
                         <Flag className="w-3 h-3" />
@@ -1302,70 +1346,61 @@ useEffect(() => {
                     )}
                   </div>
 
-                  {/* Messages - Scrollable area */}
                   <div 
                     ref={scrollContainerRef}
                     className="flex-1 overflow-y-auto p-4 space-y-4"
                   >
-                    {/* Booking info card */}
                     {currentConversation.booking && (
                       <BookingInfoCard booking={currentConversation.booking} />
                     )}
 
-                    {messages.map((message, index) => (
-                      <div key={message.id} className="relative group">
-                        <MessageBubble
-                          message={message}
-                          isOwn={message.senderId === 'guide-123'}
-                          bookingConfirmed={currentConversation.bookingConfirmed}
-                          showAvatar={
-                            index === 0 || 
-                            messages[index - 1]?.senderId !== message.senderId
-                          }
-                          travelerName={currentConversation.traveler.name}
-                          travelerAvatar={currentConversation.traveler.avatar}
-                        />
-                        
-                        {/* Flag button */}
-                        {!message.isFlagged && message.senderId !== 'guide-123' && (
-                          <button
-                            onClick={() => handleFlagMessage(message.id)}
-                            className="
-                              absolute -right-2 top-1/2 -translate-y-1/2
-                              p-1
-                              bg-white dark:bg-gray-800
-                              border border-gray-200 dark:border-gray-700
-                              rounded-lg
-                              shadow-md
-                              opacity-0 group-hover:opacity-100
-                              transition-opacity
-                              hover:bg-red-50 dark:hover:bg-red-900/30
-                              text-gray-400 hover:text-red-600
-                            "
-                            title="Report message"
-                          >
-                            <Flag className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    {isLoadingMsgs ? (
+                       <div className="space-y-4">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                             <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`w-2/3 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse`} />
+                             </div>
+                          ))}
+                       </div>
+                    ) : (
+                      messages.map((message, index) => (
+                        <div key={message.id} className="relative group">
+                          <MessageBubble
+                            message={message}
+                            isOwn={message.senderId === user?.userId}
+                            bookingConfirmed={currentConversation.bookingConfirmed}
+                            showAvatar={
+                              index === messages.length - 1 || 
+                              messages[index + 1]?.senderId !== message.senderId
+                            }
+                            index={index}
+                            messages={messages}
+                            travelerName={currentConversation.traveler.name}
+                            travelerAvatar={currentConversation.traveler.avatar}
+                            isExpanded={expandedMessageId === message.id}
+                            onToggle={() => setExpandedMessageId(expandedMessageId === message.id ? null : message.id)}
+                          />
+                          {!message.isFlagged && message.senderId !== user?.userId && (
+                            <button
+                              onClick={() => handleFlagMessage(message.id)}
+                              className="absolute -right-2 top-1/2 -translate-y-1/2 p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
+                              title="Report message"
+                            >
+                              <Flag className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
 
-                  {/* Message input - Fixed at bottom */}
                   <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-800">
                     <form onSubmit={handleSendMessage} className="flex gap-2">
                       <QuickReplyTemplates onSelect={handleQuickReply} />
                       <button
                         type="button"
-                        className="
-                          flex-none p-2
-                          text-gray-500 hover:text-gray-700
-                          dark:text-gray-400 dark:hover:text-gray-200
-                          rounded-lg
-                          hover:bg-gray-100 dark:hover:bg-gray-800
-                          transition-colors
-                        "
+                        className="flex-none p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                       >
                         <Paperclip className="w-5 h-5" />
                       </button>
@@ -1374,42 +1409,16 @@ useEffect(() => {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
-                        className="
-                          flex-1 min-w-0
-                          px-4 py-2
-                          bg-gray-100 dark:bg-gray-800
-                          border border-gray-200 dark:border-gray-700
-                          rounded-lg
-                          text-sm
-                          text-gray-900 dark:text-white
-                          placeholder-gray-500 dark:placeholder-gray-400
-                          focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                        "
+                        className="flex-1 min-w-0 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
                       <button
                         type="submit"
                         disabled={!newMessage.trim()}
-                        className="
-                          flex-none p-2
-                          bg-blue-600 dark:bg-blue-700
-                          text-white
-                          rounded-lg
-                          hover:bg-blue-700 dark:hover:bg-blue-800
-                          transition-colors
-                          disabled:opacity-50 disabled:cursor-not-allowed
-                        "
+                        className="flex-none p-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Send className="w-5 h-5" />
                       </button>
                     </form>
-
-                    {/* Safety reminder */}
-                    {!currentConversation.bookingConfirmed && (
-                      <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                        <Shield className="w-3 h-3" />
-                        Contact info is blurred until booking is confirmed. Never share payment details.
-                      </p>
-                    )}
                   </div>
                 </>
               ) : (
@@ -1419,6 +1428,5 @@ useEffect(() => {
           </div>
         </div>
       </div>
-    </>
   )
 }
