@@ -37,12 +37,12 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         setIsLoading(true)
         try {
             const res = await getTravelerBooking(Number(id))
-            if (res.data.status !== BookingStatus.Confirmed && res.data.status !== BookingStatus.Completed) {
+            if (res.status !== BookingStatus.Confirmed && res.status !== BookingStatus.Completed) {
                 toast.error('Ticket only available for confirmed bookings')
                 router.push(`/dashboard/traveler/bookings/${id}`)
                 return
             }
-            setBooking(res.data)
+            setBooking(res)
         } catch (err: any) {
             console.error('Failed to fetch booking:', err)
             toast.error('Booking not found')

@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams } from 'next/navigation'
+import toast from 'react-hot-toast'
 import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -789,17 +790,66 @@ export default function TravelerMessagingPage() {
                 if (initialConvoId) {
                     setSelectedConversation(initialConvoId)
                     setShowSidebar(false)
-                } else if (initialTourId) {
-                    const newConv = await chatApi.initiateConversation({
-                        tourId: parseInt(initialTourId),
-                        bookingId: initialBookingId ? parseInt(initialBookingId) : undefined
+                } else if (initialTourId || initialBookingId) {
+                    // PARSE & VALIDATE: Explicitly handle string literals "null"/"undefined" from router
+                    const tourIdNum = (initialTourId && initialTourId !== 'null' && initialTourId !== 'undefined') 
+                        ? parseInt(initialTourId) 
+                        : NaN
+                    
+                    const bookingIdNum = (initialBookingId && initialBookingId !== 'null' && initialBookingId !== 'undefined')
+                        ? parseInt(initialBookingId)
+                        : NaN
+
+                    // SAFETY: Prevent 400 Bad Request by checking for at least one valid identifier
+                    if (isNaN(tourIdNum) && isNaN(bookingIdNum)) {
+                        setIsLoadingConvs(false)
+                        return
+                    }
+
+                    // OPTIMIZATION: Check if we already have a conversation for this tour/booking in the list we just fetched
+                    const existing = convs.find(c => {
+                        const matchTour = !isNaN(tourIdNum) && c.tourId === tourIdNum
+                        const matchBooking = !isNaN(bookingIdNum) && c.bookingId === bookingIdNum
+                        
+                        if (!isNaN(bookingIdNum)) return matchBooking
+                        return matchTour
                     })
-                    setRealConvs(prev => prev.some(c => c.id === newConv.id) ? prev : [newConv, ...prev])
-                    setSelectedConversation(newConv.id.toString())
-                    setShowSidebar(false)
+
+                    if (existing) {
+                        console.log('Conversation already exists locally, selecting it.', { id: existing.id })
+                        setSelectedConversation(existing.id.toString())
+                        setShowSidebar(false)
+                        setIsLoadingConvs(false)
+                        return
+                    }
+
+                    try {
+                        console.log('Initiating conversation from URL params...', { 
+                            tourId: isNaN(tourIdNum) ? undefined : tourIdNum, 
+                            bookingId: isNaN(bookingIdNum) ? undefined : bookingIdNum 
+                        })
+                        const newConv = await chatApi.initiateConversation({
+                            tourId: isNaN(tourIdNum) ? undefined : tourIdNum,
+                            bookingId: isNaN(bookingIdNum) ? undefined : bookingIdNum
+                        })
+                        setRealConvs(prev => prev.some(c => c.id === newConv.id) ? prev : [newConv, ...prev])
+                        setSelectedConversation(newConv.id.toString())
+                        setShowSidebar(false)
+                    } catch (initErr: any) {
+                        console.error('Failed to auto-initiate conversation:', initErr)
+                        // Extract detailed backend message if available
+                        const backendData = initErr.response?.data
+                        const backendMessage = backendData?.message || backendData?.error
+                        const errorMsg = backendMessage || (backendData ? JSON.stringify(backendData) : initErr.message) || 'Unknown error'
+                        toast.error(`Could not start chat: ${errorMsg}`, { duration: 5000 })
+                    }
                 }
-            } catch (err) { console.error(err) }
-            finally { setIsLoadingConvs(false) }
+            } catch (err) { 
+                console.error('Failed to load conversations:', err)
+                toast.error('Failed to load messages inbox.')
+            } finally { 
+                setIsLoadingConvs(false) 
+            }
         }
         load()
     }, [user, initialConvoId, initialTourId, initialBookingId])
@@ -946,7 +996,17 @@ export default function TravelerMessagingPage() {
             safetyLevel: 'safe', 
             bookingConfirmed: c.bookingStatus === 'Confirmed' || c.bookingStatus === 'Completed', 
             updatedAt: timeStr,
-            booking: { id: c.bookingId?.toString() || '', tourId: c.tourId.toString(), tourTitle: c.tourTitle, date: bookingDate, time: bookingTime, peopleCount: c.peopleCount || 1, totalPrice: c.totalPrice || 0, currency: c.currency || 'USD', status: (c.bookingStatus?.toLowerCase() as BookingStatus || 'pending') }
+            booking: c.bookingId ? { 
+                id: c.bookingId.toString(), 
+                tourId: c.tourId.toString(), 
+                tourTitle: c.tourTitle, 
+                date: bookingDate, 
+                time: bookingTime, 
+                peopleCount: c.peopleCount || 1, 
+                totalPrice: c.totalPrice || 0, 
+                currency: c.currency || 'USD', 
+                status: (c.bookingStatus?.toLowerCase() as BookingStatus || 'pending') 
+            } : undefined
         }
     })
 
@@ -1029,10 +1089,15 @@ export default function TravelerMessagingPage() {
     return (
         <div className="h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-950 overflow-hidden">
             <NewChatModal 
-                isOpen={isNewChatModalOpen} 
-                onClose={() => setIsNewChatModalOpen(false)} 
+                isOpen={isNewChatModalOpen}
+                onClose={() => setIsNewChatModalOpen(false)}
                 role="TRAVELER"
-                onConversationInitiated={handleConversationInitiated} 
+                existingBookingIds={realConvs.map(c => c.bookingId).filter(Boolean) as number[]}
+                onConversationInitiated={(id) => {
+                    setSelectedConversation(id.toString())
+                    // Refresh conversations list
+                    chatApi.getConversations().then(setRealConvs)
+                }}
             />
             <div className="h-full flex flex-col overflow-hidden">
                 <div className="flex-none bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-3">

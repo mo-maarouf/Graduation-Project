@@ -215,7 +215,7 @@ export default function AdminLayout({
 
       setBadges({
         'admin-verifications': verificationsRes.length,
-        'admin-tours': toursRes.data.filter(t => t.status === 'PENDING_REVIEW').length
+        'admin-tours': toursRes.filter(t => t.status === 'PENDING_REVIEW').length
       })
     } catch (err) {
       console.error('Failed to fetch admin badges:', err)

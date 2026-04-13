@@ -85,7 +85,7 @@ export default function GuideCompleteProfilePage() {
     const fetchProfile = async () => {
       try {
         const res = await apiClient.get('/api/guide/profile')
-        const d = res.data
+        const d = res
         if (d) {
           if (d.fullName)   setFullName(d.fullName)
           if (d.phoneE164)  setPhoneE164(d.phoneE164)

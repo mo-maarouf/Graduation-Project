@@ -115,8 +115,7 @@ export default function AdminDashboardPage() {
           ...prev,
           totalUsers: usersResponse.users.length,
           pendingVerifications: verifs.length,
-          auditEventsCount: audits.totalElements || 0,
-          pendingTours: tours.data.length
+          pendingTours: tours.length
         }))
 
         setRecentAudits(audits.content || [])

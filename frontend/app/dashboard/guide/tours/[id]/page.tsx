@@ -133,7 +133,7 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
     try {
       setLoading(true)
       const res = await getGuideTour(parseInt(id))
-      setTour(res.data)
+      setTour(res)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to fetch tour details')
       router.push('/dashboard/guide/tours')

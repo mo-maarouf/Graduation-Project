@@ -442,7 +442,7 @@ export default function GuideToursPage() {
     try {
       setLoading(true)
       const res = await getGuideTours()
-      setTours(res.data)
+      setTours(res)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to fetch tours')
     } finally {

@@ -484,7 +484,7 @@ export default function AdminTourModerationPage() {
     try {
       setLoading(true)
       const res = await getAdminPendingTours()
-      setTours(res.data)
+      setTours(res)
     } catch (err: any) {
       toast.error('Failed to load moderation queue')
     } finally {

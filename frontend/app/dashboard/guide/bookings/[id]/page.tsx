@@ -56,7 +56,7 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
     setIsLoading(true)
     try {
       const response = await getGuideBooking(Number(id))
-      setBooking(response.data)
+      setBooking(response)
     } catch (error: any) {
       toast.error('Failed to load booking details')
       router.push('/dashboard/guide/bookings')

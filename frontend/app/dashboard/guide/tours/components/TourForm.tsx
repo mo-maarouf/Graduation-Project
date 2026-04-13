@@ -2184,7 +2184,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
     const fetchProfileData = async () => {
       try {
         const res = await getGuideProfile()
-        setProfile(res.data)
+        setProfile(res)
       } catch (err) {
         console.error('Failed to fetch guide profile in TourForm:', err)
       } finally {
@@ -2391,7 +2391,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         toast.success('Tour created successfully')
       }
 
-      const tour = tourResponse.data
+      const tour = tourResponse
 
       // 2. Upload media
       if (formData.gallery.length > 0) {
@@ -2484,7 +2484,7 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
         tourResponse = await createTour(payload)
       }
 
-      const tour = tourResponse.data
+      const tour = tourResponse
 
       // 2. Upload media
       if (formData.gallery.length > 0) {

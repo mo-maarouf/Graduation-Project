@@ -10,6 +10,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { chatApi } from '@/src/lib/api/chat'
 import { getTravelerBookings, getGuideBookings } from '@/src/lib/api/tours'
 import { BookingResponse, GuideBookingResponse } from '@/src/lib/types/tour.types'
@@ -18,9 +19,11 @@ interface PotentialContact {
   id: number // User ID
   name: string
   avatarUrl?: string
-  lastTour?: string
+  tourTitle: string
   tourId: number
   bookingId: number
+  date: string
+  status: string
 }
 
 interface NewChatModalProps {
@@ -28,13 +31,15 @@ interface NewChatModalProps {
   onClose: () => void
   role: 'TRAVELER' | 'GUIDE'
   onConversationInitiated: (conversationId: number) => void
+  existingBookingIds?: number[]
 }
 
 export default function NewChatModal({ 
   isOpen, 
   onClose, 
   role,
-  onConversationInitiated 
+  onConversationInitiated,
+  existingBookingIds = []
 }: NewChatModalProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -52,42 +57,33 @@ export default function NewChatModal({
     try {
       if (role === 'TRAVELER') {
         const bookings = await getTravelerBookings()
-        // Unique guides from bookings
-        const uniqueContacts: PotentialContact[] = []
-        const guideIds = new Set()
-
-        bookings.forEach(b => {
-          if (!guideIds.has(b.guideId)) {
-            guideIds.add(b.guideId)
-            uniqueContacts.push({
-              id: b.guideId,
-              name: b.guideName,
-              lastTour: b.tourTitle,
-              tourId: b.tourId,
-              bookingId: b.id
-            })
-          }
-        })
-        setContacts(uniqueContacts)
+        const potContacts: PotentialContact[] = bookings
+          .filter(b => !existingBookingIds.includes(b.id))
+          .map(b => ({
+            id: b.guideId,
+            name: b.guideName,
+            tourTitle: b.tourTitle,
+            tourId: b.tourId,
+            bookingId: b.id,
+            date: new Date(b.startTimeUtc).toLocaleDateString(),
+            status: b.status
+          }))
+        setContacts(potContacts)
       } else {
         const bookings = await getGuideBookings()
-        // Unique travelers from bookings
-        const uniqueContacts: PotentialContact[] = []
-        const travelerIds = new Set()
-
-        bookings.forEach(b => {
-          if (b.traveler && !travelerIds.has(b.traveler.id)) {
-            travelerIds.add(b.traveler.id)
-            uniqueContacts.push({
-              id: b.traveler.id,
-              name: b.traveler.fullName,
-              lastTour: b.tourTitle,
-              tourId: b.tourId,
-              bookingId: b.id
-            })
-          }
-        })
-        setContacts(uniqueContacts)
+        const potContacts: PotentialContact[] = bookings
+          .filter(b => !existingBookingIds.includes(b.id))
+          .filter(b => b.traveler !== null)
+          .map(b => ({
+            id: b.traveler!.id,
+            name: b.traveler!.fullName,
+            tourTitle: b.tourTitle,
+            tourId: b.tourId,
+            bookingId: b.id,
+            date: new Date(b.startTimeUtc).toLocaleDateString(),
+            status: b.status
+          }))
+        setContacts(potContacts)
       }
     } catch (error) {
       console.error('Failed to fetch potential contacts:', error)
@@ -97,16 +93,30 @@ export default function NewChatModal({
   }
 
   const handleInitiate = async (contact: PotentialContact) => {
+    if (!contact.tourId || isNaN(contact.tourId)) {
+      toast.error('Invalid tour selection')
+      return
+    }
+
     setInitiatingId(contact.id)
     try {
+      console.log('Initiating conversation from modal...', { 
+        tourId: contact.tourId, 
+        bookingId: contact.bookingId 
+      })
       const conv = await chatApi.initiateConversation({
         tourId: contact.tourId,
-        bookingId: contact.bookingId
+        bookingId: contact.bookingId || undefined
       })
+      toast.success('Conversation started!')
       onConversationInitiated(conv.id)
       onClose()
-    } catch (error) {
-      console.error('Failed to initiate conversation:', error)
+    } catch (err: any) {
+      console.error('Failed to initiate conversation:', err)
+      const backendData = err.response?.data
+      const backendMessage = backendData?.message || backendData?.error
+      const errorMsg = backendMessage || (backendData ? JSON.stringify(backendData) : err.message) || 'Could not start chat'
+      toast.error(errorMsg, { duration: 5000 })
     } finally {
       setInitiatingId(null)
     }
@@ -114,7 +124,7 @@ export default function NewChatModal({
 
   const filteredContacts = contacts.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.lastTour?.toLowerCase().includes(searchTerm.toLowerCase())
+    c.tourTitle.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (!isOpen) return null
@@ -180,7 +190,7 @@ export default function NewChatModal({
               <div className="space-y-1">
                 {filteredContacts.map(contact => (
                   <button
-                    key={contact.id}
+                    key={contact.bookingId}
                     onClick={() => handleInitiate(contact)}
                     disabled={initiatingId !== null}
                     className="w-full flex items-center gap-4 p-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all group text-left"
@@ -194,11 +204,19 @@ export default function NewChatModal({
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                        {contact.name}
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {contact.name}
+                        </span>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-md">
+                          {contact.status}
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        Tour: {contact.lastTour}
+                      <div className="text-xs text-gray-600 dark:text-gray-300 font-medium truncate">
+                        {contact.tourTitle}
+                      </div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-500 mt-0.5">
+                        {contact.date}
                       </div>
                     </div>
                     {initiatingId === contact.id ? (

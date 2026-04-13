@@ -112,9 +112,9 @@ export default function BookingDetailPage({ params }: BookingDetailPageProps) {
             try {
                 const [bookingRes, reviewsRes] = await Promise.all([
                     getTravelerBooking(Number(bookingId)),
-                    getTravelerReviews().catch(() => ({ data: { content: [] } }))
+                    getTravelerReviews().catch(() => ({ content: [] }))
                 ])
-                setBooking(bookingRes.data)
+                setBooking(bookingRes)
                 
                 // PERSISTENT SYNC: Mark all notifications for this specific booking as read
                 try {
@@ -128,7 +128,7 @@ export default function BookingDetailPage({ params }: BookingDetailPageProps) {
                 }
 
                 // Check if this booking ID exists in the traveler's reviews
-                const reviewed = (reviewsRes.data?.content || []).some(
+                const reviewed = (reviewsRes?.content || []).some(
                     (r: any) => r.bookingId === Number(bookingId)
                 )
                 setIsReviewed(reviewed)
@@ -148,11 +148,11 @@ export default function BookingDetailPage({ params }: BookingDetailPageProps) {
     try {
       const res = await cancelBooking(booking.id, cancelReason ? { reason: cancelReason } : undefined)
       toast.success(
-        `Booking cancelled! ${res.data.refundPercent ? `${res.data.refundPercent}% refund` : 'No refund (within 24h window)'}`
+        `Booking cancelled! ${res.refundPercent ? `${res.refundPercent}% refund` : 'No refund (within 24h window)'}`
       )
       setShowCancelModal(false)
       const updated = await getTravelerBooking(booking.id)
-      setBooking(updated.data)
+      setBooking(updated)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to cancel booking')
     } finally {

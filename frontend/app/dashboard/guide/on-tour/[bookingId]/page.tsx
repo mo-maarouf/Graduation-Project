@@ -145,7 +145,7 @@ export default function BookingDetailsPage({ params }: BookingDetailsPageProps) 
     setIsLoading(true)
     try {
       const res = await getGuideBooking(Number(bookingId))
-      setBooking(res.data)
+      setBooking(res)
     } catch {
       toast.error('Booking not found or access denied')
       router.push('/dashboard/guide/on-tour')

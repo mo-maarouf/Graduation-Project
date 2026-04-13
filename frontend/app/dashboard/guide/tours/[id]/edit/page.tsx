@@ -31,7 +31,7 @@ export default function EditTourPage({ params }: { params: Promise<{ id: string 
       try {
         setLoading(true)
         const res = await getGuideTour(parseInt(id))
-        setTour(res.data)
+        setTour(res)
       } catch (err: any) {
         const msg = err.response?.data?.message || 'Failed to fetch tour'
         setError(msg)

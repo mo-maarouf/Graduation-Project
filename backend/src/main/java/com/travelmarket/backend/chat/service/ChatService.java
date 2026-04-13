@@ -22,6 +22,7 @@ import com.travelmarket.backend.tour.repository.TourTemplateRepository;
 import com.travelmarket.backend.notification.enums.NotificationType;
 import com.travelmarket.backend.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatService {
 
     private final ConversationRepository conversationRepository;
@@ -156,11 +158,13 @@ public class ChatService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
             
             if (booking.getTraveler() == null || booking.getTraveler().getUser() == null) {
+                log.warn("Chat initiation failed: Booking {} missing traveler profile/user", bookingId);
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking data is inconsistent: missing traveler profile or user.");
             }
             if (booking.getOccurrence() == null || booking.getOccurrence().getTemplate() == null || 
                 booking.getOccurrence().getTemplate().getGuide() == null || 
                 booking.getOccurrence().getTemplate().getGuide().getUser() == null) {
+                log.warn("Chat initiation failed: Booking {} missing occurrence, template, or guide info", bookingId);
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking data is inconsistent: missing occurrence, template, or guide user.");
             }
 
@@ -179,11 +183,13 @@ public class ChatService {
         }
 
         if (tour == null) {
+            log.warn("Chat initiation failed: Both tourId and bookingId were null or unresolvable");
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tourId is required when bookingId is not provided.");
         }
 
         // Deduce participant IDs. Since sender can be either a traveler or the guide themselves (though usually traveler initiates)
         if (tour.getGuide() == null || tour.getGuide().getUser() == null) {
+            log.warn("Chat initiation failed: Tour {} missing guide profile or user link", tourId);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tour data is inconsistent: missing guide profile or user.");
         }
         Long guideUserId = tour.getGuide().getUser().getId();
@@ -193,6 +199,7 @@ public class ChatService {
 
         // If travelerUserId is null, it means the guide tried to initiate a chat with "nobody" using just a tour ID.
         if (travelerUserId == null && bookingId == null) {
+            log.warn("Chat initiation failed: User {} (Guide) tried to start a tour-level chat for Tour {} without a target traveler", sender.getId(), tourId);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chat initialization failed: Guides cannot initiate a tour-level conversation without a target traveler.");
         }
 

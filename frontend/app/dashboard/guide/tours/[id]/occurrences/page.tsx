@@ -655,8 +655,8 @@ export default function TourOccurrencesPage() {
         getGuideTour(tourId),
         getGuideOccurrences(tourId)
       ])
-      setTour(tourRes.data)
-      setOccurrences(occRes.data)
+      setTour(tourRes)
+      setOccurrences(occRes)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to sync departures')
       router.push('/dashboard/guide/tours')

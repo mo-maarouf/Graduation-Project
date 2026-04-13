@@ -1288,8 +1288,8 @@ export default function GuideMessagingPage() {
       safetyLevel: 'safe', 
       bookingConfirmed: c.bookingStatus === 'Confirmed' || c.bookingStatus === 'Completed', 
       updatedAt: timeStr,
-      booking: { 
-        id: c.bookingId?.toString() || '', 
+      booking: c.bookingId ? { 
+        id: c.bookingId.toString(), 
         tourId: c.tourId.toString(), 
         tourTitle: c.tourTitle, 
         date: bookingDate, 
@@ -1298,7 +1298,7 @@ export default function GuideMessagingPage() {
         totalPrice: c.totalPrice || 0, 
         currency: c.currency || 'USD', 
         status: (c.bookingStatus ? c.bookingStatus.toLowerCase() as BookingStatus : 'pending') 
-      }
+      } : undefined
     }
   })
 
@@ -1675,6 +1675,7 @@ export default function GuideMessagingPage() {
         isOpen={isNewChatModalOpen}
         onClose={() => setIsNewChatModalOpen(false)}
         role="GUIDE"
+        existingBookingIds={realConvs.map(c => c.bookingId).filter(Boolean) as number[]}
         onConversationInitiated={(id: number) => handleConversationInitiated(id)}
       />
     </div>
