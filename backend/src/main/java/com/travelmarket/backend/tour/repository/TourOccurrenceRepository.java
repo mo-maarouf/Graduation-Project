@@ -2,9 +2,11 @@ package com.travelmarket.backend.tour.repository;
 
 import com.travelmarket.backend.tour.entity.TourOccurrence;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
@@ -13,7 +15,27 @@ import java.util.Optional;
 
 public interface TourOccurrenceRepository extends JpaRepository<TourOccurrence, Long> {
 
+  /**
+   * Acquires a PostgreSQL row-level exclusive lock (SELECT ... FOR UPDATE) on the
+   * TourOccurrence row BEFORE the caller checks capacity or modifies seats_reserved.
+   *
+   * This serializes concurrent booking attempts on the same slot:
+   *   - First request grabs the lock → reads capacity → reserves seats → commits → releases lock.
+   *   - All subsequent concurrent requests must WAIT (up to the timeout below).
+   *   - After the first request commits, the next request proceeds with the updated
+   *     seats_reserved value, sees the occurrence is full, and throws 409.
+   *
+   * Lock timeout (javax.persistence.lock.timeout = 2000 ms):
+   *   If a request waits more than 2 seconds for the lock (e.g., previous holder is slow
+   *   or crashed), it throws PessimisticLockingFailureException rather than blocking forever.
+   *   GlobalExceptionHandler maps this to HTTP 409 "slot is being booked, try again."
+   *
+   * Why not optimistic? @Version on Booking only protects the Booking INSERT — it does NOT
+   * prevent two threads from both passing the capacity check on the TourOccurrence row.
+   * Pessimistic locking on the occurrence row closes this TOCTOU window completely.
+   */
   @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "2000"))
   @Query("SELECT o FROM TourOccurrence o WHERE o.id = :id AND o.deletedAtUtc IS NULL")
   Optional<TourOccurrence> findByIdWithLock(@Param("id") Long id);
 

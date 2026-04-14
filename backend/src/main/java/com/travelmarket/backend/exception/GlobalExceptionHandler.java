@@ -2,6 +2,7 @@ package com.travelmarket.backend.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -56,6 +57,29 @@ public class GlobalExceptionHandler {
         body.put("timestamp", Instant.now());
         body.put("status", HttpStatus.CONFLICT.value());
         body.put("message", "This tour was just updated by another request. Please try again.");
+        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Handles pessimistic lock timeout failures.
+     *
+     * Thrown by BookingService when findByIdWithLock() (SELECT ... FOR UPDATE) cannot
+     * acquire the row-level lock on a TourOccurrence within the configured timeout
+     * (2000 ms). This happens specifically under high concurrent booking load when
+     * multiple users race to book the last seat(s) on the same slot.
+     *
+     * Mapped to HTTP 409 so the client receives a clear, retryable error rather
+     * than a generic 500. The user-facing message explains what happened without
+     * leaking internal locking details.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLock(
+            PessimisticLockingFailureException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("message",
+                "This slot is currently being booked by another user. Please wait a moment and try again.");
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
 

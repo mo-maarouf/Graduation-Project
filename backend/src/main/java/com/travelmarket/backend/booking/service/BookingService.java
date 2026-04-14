@@ -60,8 +60,18 @@ public class BookingService {
     public BookingResponse createBooking(String email, CreateBookingRequest request) {
         TravelerProfile traveler = resolveTraveler(email);
         validateTravelerEligibility(traveler);
-        
-        TourOccurrence occurrence = resolveOccurrence(request.getOccurrenceId());
+
+        // ── CRITICAL SECTION START ─────────────────────────────────────────────
+        // Acquire a PostgreSQL row-level exclusive lock (SELECT ... FOR UPDATE) on
+        // the TourOccurrence row BEFORE reading seatsReserved or writing anything.
+        //
+        // This ensures only ONE transaction at a time can execute the
+        // check-availability → reserve-seats → save-booking sequence for a given slot.
+        //
+        // All concurrent requests for the same occurrence will block here until the
+        // first request commits (lock released). They then re-read the updated
+        // seatsReserved value and correctly see the tour is full.
+        TourOccurrence occurrence = resolveOccurrenceWithLock(request.getOccurrenceId());
 
         validateOccurrenceBookable(occurrence);
 
@@ -252,7 +262,28 @@ public class BookingService {
         }
 
         TourOccurrence oldOccurrence = booking.getOccurrence();
-        TourOccurrence newOccurrence = resolveOccurrence(request.getOccurrenceId());
+
+        // Lock the old occurrence first (alphabetically smaller ID first to prevent deadlock
+        // when two users simultaneously swap between the same two occurrences in opposite order).
+        // We always lock the lower-ID occurrence first so lock ordering is deterministic.
+        Long oldId = oldOccurrence.getId();
+        Long newId = request.getOccurrenceId();
+
+        TourOccurrence newOccurrence;
+        if (!oldId.equals(newId)) {
+            // Switching occurrences — lock BOTH rows in ID order to prevent deadlock.
+            Long firstId  = (oldId < newId) ? oldId : newId;
+            Long secondId = (oldId < newId) ? newId : oldId;
+            TourOccurrence first  = resolveOccurrenceWithLock(firstId);
+            TourOccurrence second = resolveOccurrenceWithLock(secondId);
+            // Re-assign so oldOccurrence/newOccurrence point to the correctly locked instances
+            oldOccurrence = first.getId().equals(oldId) ? first : second;
+            newOccurrence = first.getId().equals(newId) ? first : second;
+        } else {
+            // Same occurrence — single lock suffices
+            oldOccurrence = resolveOccurrenceWithLock(oldId);
+            newOccurrence = oldOccurrence;
+        }
 
         int oldPeopleCount = booking.getPeopleCount();
         int newPeopleCount = request.getPeopleCount();
@@ -772,6 +803,35 @@ public class BookingService {
                     "This tour occurrence is no longer available");
         }
         return o;
+    }
+
+    /**
+     * Like resolveOccurrence(), but acquires a pessimistic write lock (SELECT ... FOR UPDATE)
+     * on the TourOccurrence row in the database BEFORE returning it.
+     *
+     * Use this in ALL write paths that:
+     *   1. Read seatsReserved
+     *   2. Compute a new seat count
+     *   3. Call reserveSeats() or releaseSeats()
+     *
+     * The lock is automatically released when the enclosing @Transactional method commits
+     * or rolls back. No manual unlock is needed.
+     *
+     * NOT needed for pure read methods (getTravelerBookings, getGuideBooking, etc.) —
+     * those do not modify seats and should NOT acquire write locks to avoid contention.
+     *
+     * Thread safety: if two transactions race to lock the same occurrence, one will block
+     * for up to 2000 ms (configured via @QueryHints on the repository method). After that
+     * deadline, PessimisticLockingFailureException is thrown and mapped to HTTP 409 by
+     * GlobalExceptionHandler.
+     */
+    private TourOccurrence resolveOccurrenceWithLock(Long id) {
+        // findByIdWithLock issues: SELECT ... FROM tour_occurrences WHERE id = ? AND deleted_at_utc IS NULL FOR UPDATE
+        // This blocks any other transaction that also tries to lock or update this row
+        // until the current transaction commits or rolls back.
+        return occurrenceRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Tour occurrence not found or no longer available"));
     }
 
     /**
