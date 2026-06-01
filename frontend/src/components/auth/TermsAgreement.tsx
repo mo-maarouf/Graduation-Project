@@ -477,7 +477,7 @@ export default function TermsAgreement({
 
  <p className="text-center text-[10px] font-bold capitalize tracking-[0.2em] text-theme-muted flex items-center justify-center gap-2 opacity-50">
  <Shield size={12} />
- Secured by SafariHub Trust™
+ Secured by Tourongo Trust™
  </p>
  </form>
  </div>

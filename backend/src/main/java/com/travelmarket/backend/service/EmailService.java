@@ -48,12 +48,12 @@ public class EmailService {
 
     @Async
     public void sendSetupPasswordReminder(String to, String name) {
-        String subject = "Set up your SafariHub password";
+        String subject = "Set up your Tourongo password";
         String body = "Hi " + (name != null ? name : "Traveler") + ",\n\n"
-                + "Welcome to SafariHub! Since you signed up with Google, you don't have a password set yet.\n\n"
+                + "Welcome to Tourongo! Since you signed up with Google, you don't have a password set yet.\n\n"
                 + "To ensure you always have access to your account, we recommend setting a password.\n"
                 + "You can do this securely in your account Settings.\n\n"
-                + "Thanks,\nSafariHub Team";
+                + "Thanks,\nTourongo Team";
         
         send(to, subject, body);
     }
@@ -70,7 +70,7 @@ public class EmailService {
               <p>A dispute has been filed regarding your booking for <strong>%s</strong>.</p>
               <p>You may log in to your dashboard to view the details and submit your response.</p>
               <p style="margin-top:24px;color:#6b7280;font-size:13px">Dispute ID: #%d</p>
-              <p style="color:#6b7280;font-size:13px">SafariHub Support Team</p>
+              <p style="color:#6b7280;font-size:13px">Tourongo Support Team</p>
             </div>
             """, recipientName, tourTitle, disputeId);
         sendHtml(to, subject, body);
@@ -86,7 +86,7 @@ public class EmailService {
               <p>The dispute for your booking of <strong>%s</strong> is now being reviewed by our admin team.</p>
               <p>We'll notify you as soon as a decision has been made. This typically takes 1–3 business days.</p>
               <p style="margin-top:24px;color:#6b7280;font-size:13px">Dispute ID: #%d</p>
-              <p style="color:#6b7280;font-size:13px">SafariHub Support Team</p>
+              <p style="color:#6b7280;font-size:13px">Tourongo Support Team</p>
             </div>
             """, recipientName, tourTitle, disputeId);
         sendHtml(to, subject, body);
@@ -102,7 +102,7 @@ public class EmailService {
               <p>The other party has submitted a response to your dispute for <strong>%s</strong>.</p>
               <p>Log in to your dashboard to view their response.</p>
               <p style="margin-top:24px;color:#6b7280;font-size:13px">Dispute ID: #%d</p>
-              <p style="color:#6b7280;font-size:13px">SafariHub Support Team</p>
+              <p style="color:#6b7280;font-size:13px">Tourongo Support Team</p>
             </div>
             """, recipientName, tourTitle, disputeId);
         sendHtml(to, subject, body);
@@ -124,7 +124,7 @@ public class EmailService {
                 <p style="margin:0;font-size:14px"><strong>Admin Decision:</strong> %s</p>
               </div>
               <p style="margin-top:24px;color:#6b7280;font-size:13px">Dispute ID: #%d</p>
-              <p style="color:#6b7280;font-size:13px">SafariHub Support Team</p>
+              <p style="color:#6b7280;font-size:13px">Tourongo Support Team</p>
             </div>
             """, recipientName, tourTitle, refundBlock, resolutionNote, disputeId);
         sendHtml(to, subject, body);
@@ -143,7 +143,7 @@ public class EmailService {
               </div>
               <p>If you believe this is an error, please contact our support team.</p>
               <p style="margin-top:24px;color:#6b7280;font-size:13px">Dispute ID: #%d</p>
-              <p style="color:#6b7280;font-size:13px">SafariHub Support Team</p>
+              <p style="color:#6b7280;font-size:13px">Tourongo Support Team</p>
             </div>
             """, recipientName, tourTitle, reason, disputeId);
         sendHtml(to, subject, body);

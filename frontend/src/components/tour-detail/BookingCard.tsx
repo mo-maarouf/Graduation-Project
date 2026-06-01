@@ -41,6 +41,7 @@ import { BookingCardProps, BookingMode } from '@/src/types/tour-detail.types'
 import { PublicActiveBookingResponse, BookingStatus, PricePreviewResponse } from '@/src/lib/types/tour.types'
 import { getPricePreview } from '@/src/lib/api/tours'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 
 export default function BookingCard({
  basePrice,
@@ -87,6 +88,9 @@ export default function BookingCard({
  const [isRequestMode, setIsRequestMode] = useState(bookingMode === 'request')
  const [waiverSigned, setWaiverSigned] = useState(false)
  const [isMobileExpanded, setIsMobileExpanded] = useState(false)
+ const [showGroupSizeWarning, setShowGroupSizeWarning] = useState(false)
+ const [pendingGroupUpdate, setPendingGroupUpdate] = useState<{ occurrenceId: number; peopleCount: number } | null>(null)
+ const [showDateSelectWarning, setShowDateSelectWarning] = useState(false)
  /**
   * Server-computed price breakdown — fetched when date or peopleCount changes.
   * Null while loading or before any date is selected.
@@ -376,15 +380,14 @@ export default function BookingCard({
  if (!occurrenceId) return
 
  try {
- await onUpdateBooking(activeBookingId, occurrenceId, peopleCount, false)
+  await onUpdateBooking(activeBookingId, occurrenceId, peopleCount, false)
  } catch (error: any) {
- if (error.response?.status === 409) {
- if (window.confirm("Increase group size will move you to the waitlist and you will lose your current spot. Are you sure?")) {
- await onUpdateBooking(activeBookingId, occurrenceId, peopleCount, true)
- }
- } else {
- toast.error(error.response?.data?.message || 'Update failed')
- }
+  if (error.response?.status === 409) {
+   setPendingGroupUpdate({ occurrenceId, peopleCount })
+   setShowGroupSizeWarning(true)
+  } else {
+   toast.error(error.response?.data?.message || 'Update failed')
+  }
  }
  }
  return
@@ -406,15 +409,27 @@ export default function BookingCard({
 
  const handleWaitlist = () => {
  if (!selectedDate) {
- alert('Please select a date')
- return
+  setShowDateSelectWarning(true)
+  return
  }
  
  if (isWaitlisted && currentWaitlistEntry) {
- onLeaveWaitlist?.(currentWaitlistEntry.id)
+  onLeaveWaitlist?.(currentWaitlistEntry.id)
  } else {
- onJoinWaitlist(selectedDate, peopleCount)
+  onJoinWaitlist(selectedDate, peopleCount)
  }
+ }
+
+ const handleConfirmGroupSizeChange = async () => {
+  if (!pendingGroupUpdate) return
+  setShowGroupSizeWarning(false)
+  try {
+   await onUpdateBooking(activeBookingId, pendingGroupUpdate.occurrenceId, pendingGroupUpdate.peopleCount, true)
+  } catch (error: any) {
+   toast.error(error.response?.data?.message || 'Update failed')
+  } finally {
+   setPendingGroupUpdate(null)
+  }
  }
 
  // ========================================
@@ -422,7 +437,30 @@ export default function BookingCard({
  // ========================================
 
  return (
- <div id="booking-card" className="surface-section border border-primary-light/10 dark:border-primary-dark/10 rounded-xl overflow-hidden sticky top-24">
+ <>
+  <ConfirmationDialog
+   isOpen={showGroupSizeWarning}
+   title="Group Size Warning"
+   message="Increasing group size will move you to the waitlist and you will lose your current spot. Are you sure?"
+   confirmText="Proceed"
+   cancelText="Cancel"
+   isDangerous={true}
+   onConfirm={handleConfirmGroupSizeChange}
+   onCancel={() => {
+    setShowGroupSizeWarning(false)
+    setPendingGroupUpdate(null)
+   }}
+  />
+  <ConfirmationDialog
+   isOpen={showDateSelectWarning}
+   title="Select a Date"
+   message="Please select a date before proceeding."
+   confirmText="OK"
+   cancelText="Cancel"
+   onConfirm={() => setShowDateSelectWarning(false)}
+   onCancel={() => setShowDateSelectWarning(false)}
+  />
+  <div id="booking-card" className="surface-section border border-primary-light/10 dark:border-primary-dark/10 rounded-xl overflow-hidden sticky top-24\">
  {/* ========================================
  HEADER - PRICE & AVAILABILITY
  ======================================== */}
@@ -888,5 +926,6 @@ export default function BookingCard({
  )}
  </div>
  </div>
+ </>
  )
 }

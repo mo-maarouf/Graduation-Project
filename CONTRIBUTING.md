@@ -1,18 +1,18 @@
-# Contributing to SafariHub
+# Contributing to Tourongo
 
-First off, thank you for considering contributing to SafariHub! It's people like you that make SafariHub such a great platform.
+First off, thank you for considering contributing to Tourongo! It's people like you that make Tourongo such a great platform.
 
 ## 🤝 How Can I Contribute?
 
 ### Reporting Bugs
-This section guides you through submitting a bug report for SafariHub.
+This section guides you through submitting a bug report for Tourongo.
 *   **Ensure the bug was not already reported** by searching on GitHub under Issues.
 *   If you're unable to find an open issue addressing the problem, open a new one. Be sure to include a title and clear description, as much relevant information as possible, and a code sample or an executable test case demonstrating the expected behavior that is not occurring.
 
 ### Suggesting Enhancements
 This section guides you through submitting an enhancement suggestion, including completely new features and minor improvements to existing functionality.
 *   Open a new issue with a clear title and description.
-*   Explain why this enhancement would be useful to most SafariHub users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
+*   Explain why this enhancement would be useful to most Tourongo users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
 
 ### Your First Code Contribution
 Unsure where to begin contributing? You can start by looking through `help-wanted` issues. 

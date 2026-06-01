@@ -37,7 +37,7 @@ export default function HeroTestPage() {
  </main>
 
  <footer className="py-20 surface-section border-t dark:border-white/5 text-center">
- <p className="text-theme-muted text-sm font-medium capitalize tracking-normal">Hero Comparison Demo • SafariHub</p>
+ <p className="text-theme-muted text-sm font-medium capitalize tracking-normal">Hero Comparison Demo • Tourongo</p>
  </footer>
  </div>
  )

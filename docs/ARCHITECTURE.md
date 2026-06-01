@@ -1,10 +1,10 @@
-# SafariHub Architecture
+# Tourongo Architecture
 
-This document outlines the high-level architecture of SafariHub.
+This document outlines the high-level architecture of Tourongo.
 
 ## System Overview
 
-SafariHub follows a modern, decoupled client-server architecture.
+Tourongo follows a modern, decoupled client-server architecture.
 
 ```mermaid
 graph TD

@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
-import { passwordChange, updateNotificationPreferences } from '@/src/lib/api/auth'
+import { passwordChange, updateNotificationPreferences, deleteAccount } from '@/src/lib/api/auth'
 import { motion, AnimatePresence } from 'framer-motion'
 import SettingsSkeleton from '@/src/components/dashboard/SettingsSkeleton'
 import SetPasswordForm from '@/src/components/auth/SetPasswordForm'
@@ -72,7 +72,7 @@ const TIMEZONES = [
 
 export default function TravelerSettingsPage() {
  const router = useRouter()
- const { user, forgotPassword, isLoading } = useAuth()
+ const { user, forgotPassword, isLoading, logout } = useAuth()
  
  if (isLoading || !user) {
    return <SettingsSkeleton />
@@ -93,12 +93,10 @@ export default function TravelerSettingsPage() {
  const [timezone, setTimezone] = useState('UTC')
  const [emailNotifications, setEmailNotifications] = useState(user?.emailNotificationsEnabled ?? true)
  const [pushNotifications, setPushNotifications] = useState(user?.pushNotificationsEnabled ?? true)
- 
- // Delete states
- const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
- const [deleteText, setDeleteText] = useState('')
  const [isSaving, setIsSaving] = useState(false)
- const [isDeleting, setIsDeleting] = useState(false)
+ const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+ const [deleteConfirmText, setDeleteConfirmText] = useState('')
+ const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
  const passwordStrength = getPasswordStrength(newPassword)
  const passwordsMatch = newPassword === confirmPassword
@@ -144,20 +142,27 @@ export default function TravelerSettingsPage() {
  }
 
  const handleDeleteAccount = async () => {
- if (deleteText !== 'DELETE') return
- setIsDeleting(true)
+ if (deleteConfirmText !== 'DELETE') {
+ toast.error('Please type DELETE to confirm')
+ return
+ }
+ setIsDeletingAccount(true)
  try {
- await new Promise(resolve => setTimeout(resolve, 2000))
- toast.success('Account purged')
- router.push('/')
- } catch (error) {
- toast.error('Failed to delete')
- setIsDeleting(false)
+ await deleteAccount()
+ toast.success('Account deleted. Goodbye!')
+ await logout()
+ } catch (error: any) {
+ toast.error(error.response?.data?.message || 'Failed to delete account')
+ } finally {
+ setIsDeletingAccount(false)
+ setShowDeleteConfirm(false)
+ setDeleteConfirmText('')
  }
  }
 
  return (
- <div className="flex-1 overflow-y-auto overflow-x-hidden chat-scrollbar">
+ <>
+  <div className="flex-1 overflow-y-auto overflow-x-hidden chat-scrollbar\">
  <div className="max-w-4xl mx-auto py-6 sm:py-10 px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
  
  {/* Header Hub */}
@@ -341,21 +346,47 @@ export default function TravelerSettingsPage() {
 
  <div className="p-6 sm:p-10 bg-red-500/5 border border-red-500/20 rounded-[2rem] sm:rounded-[3rem]">
  <h3 className="text-[10px] font-black text-red-600 dark:text-red-400 capitalize tracking-[0.3em] mb-4 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Termination Protocol</h3>
- <p className="text-[10px] sm:text-xs text-theme-secondary mb-6 leading-relaxed font-bold capitalize tracking-normal opacity-80">Deleting your account will trigger a permanent data purge. All expeditions, loyalty credits, and historical logs will be non-recoverable.</p>
-
+ <p className="text-[10px] sm:text-xs text-theme-secondary mb-6 leading-relaxed font-bold capitalize tracking-normal opacity-80">Permanently delete your account and all associated data. This action is irreversible.</p>
+ 
  {!showDeleteConfirm ? (
- <button onClick={() => setShowDeleteConfirm(true)} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black capitalize tracking-normal rounded-xl transition-all shadow-xl shadow-red-500/20 active:scale-95">Initialize Account Purge</button>
- ) : (
- <div className="space-y-4 max-w-sm">
- <p className="text-[10px] font-black text-red-600 dark:text-red-400 capitalize tracking-normal">Input <span className="font-mono bg-red-600/10 px-2 py-1 rounded text-xs">DELETE</span> to confirm intent:</p>
- <input type="text" value={deleteText} onChange={(e) => setDeleteText(e.target.value)} className="w-full px-5 py-4 surface-card border-2 border-red-500 rounded-2xl text-sm text-theme-primary focus:outline-none focus:ring-4 focus:ring-red-500/20 transition-all font-black capitalize tracking-[0.3em]" placeholder="DELETE" />
- <div className="flex flex-col sm:flex-row gap-3 pt-2">
- <button onClick={handleDeleteAccount} disabled={deleteText !== 'DELETE' || isDeleting} className="order-1 sm:order-2 px-8 py-4 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black capitalize tracking-normal rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-2xl shadow-red-600/30">
- {isDeleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Purging...</> : <>Confirm Permanent Purge</>}
+ <button
+ onClick={() => setShowDeleteConfirm(true)}
+ className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black capitalize tracking-normal rounded-xl transition-all active:scale-95 flex items-center gap-2"
+ >
+ <Trash2 className="w-4 h-4" />
+ Delete Account
  </button>
- <button onClick={() => { setShowDeleteConfirm(false); setDeleteText(''); }} className="order-2 sm:order-1 px-8 py-4 surface-section text-theme-muted hover:text-theme-primary text-[10px] font-black capitalize tracking-normal rounded-2xl transition-all border border-theme">Abort Mission</button>
+ ) : (
+ <motion.div
+ initial={{ opacity: 0, y: 6 }}
+ animate={{ opacity: 1, y: 0 }}
+ className="space-y-4 border border-red-500/30 bg-red-500/5 rounded-2xl p-5"
+ >
+ <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">⚠ This cannot be undone</p>
+ <p className="text-xs text-theme-secondary font-medium">Type <span className="font-black text-red-500">DELETE</span> to confirm:</p>
+ <input
+ type="text"
+ value={deleteConfirmText}
+ onChange={e => setDeleteConfirmText(e.target.value)}
+ placeholder="Type DELETE here"
+ className="w-full px-4 py-3 surface-section border border-red-500/30 focus:border-red-500 rounded-xl text-sm font-bold outline-none transition-all"
+ />
+ <div className="flex gap-3">
+ <button
+ onClick={handleDeleteAccount}
+ disabled={isDeletingAccount || deleteConfirmText !== 'DELETE'}
+ className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black capitalize tracking-normal rounded-xl transition-all active:scale-95 flex items-center gap-2"
+ >
+ {isDeletingAccount ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</> : <><Trash2 className="w-4 h-4" /> Confirm Delete</>}
+ </button>
+ <button
+ onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText('') }}
+ className="px-6 py-3 surface-section border border-theme text-theme-muted text-[10px] font-black capitalize tracking-normal rounded-xl transition-all active:scale-95"
+ >
+ Cancel
+ </button>
  </div>
- </div>
+ </motion.div>
  )}
  </div>
  </motion.div>
@@ -365,5 +396,6 @@ export default function TravelerSettingsPage() {
  </div>
  </div>
  </div>
+ </>
  );
 }

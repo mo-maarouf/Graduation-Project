@@ -23,6 +23,7 @@ import {
   CreditCard
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 import { getGuideBooking, confirmBooking, rejectBooking } from '@/src/lib/api/tours'
 import { notificationsApi } from '@/src/lib/api/notifications'
 import { GuideBookingResponse, BookingStatus } from '@/src/lib/types/tour.types'
@@ -34,6 +35,7 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
   const [booking, setBooking] = useState<GuideBookingResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState<'approve' | 'reject' | null>(null)
 
   useEffect(() => {
     fetchBooking()
@@ -68,8 +70,12 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
 
   const handleConfirm = async () => {
     if (!booking) return
-    if (!confirm('Approve this booking request?')) return
+    setShowConfirmDialog('approve')
+  }
 
+  const handleConfirmApprove = async () => {
+    if (!booking) return
+    setShowConfirmDialog(null)
     setIsProcessing(true)
     try {
       await confirmBooking(booking.id)
@@ -84,8 +90,12 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
 
   const handleReject = async () => {
     if (!booking) return
-    if (!confirm('Reject this booking request? This will refund the traveler.')) return
+    setShowConfirmDialog('reject')
+  }
 
+  const handleConfirmReject = async () => {
+    if (!booking) return
+    setShowConfirmDialog(null)
     setIsProcessing(true)
     try {
       await rejectBooking(booking.id)
@@ -129,9 +139,29 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
   })
 
   return (
-    <div className="min-h-screen surface-base">
-      <div className="max-w-5xl mx-auto px-4 py-6 pt-16 sm:pt-24">
-        {/* Payment Warning Banner */}
+    <>
+      <ConfirmationDialog
+        isOpen={showConfirmDialog === 'approve'}
+        title="Approve Booking"
+        message="Are you sure you want to approve this booking request?"
+        confirmText="Approve"
+        cancelText="Cancel"
+        onConfirm={handleConfirmApprove}
+        onCancel={() => setShowConfirmDialog(null)}
+      />
+      <ConfirmationDialog
+        isOpen={showConfirmDialog === 'reject'}
+        title="Reject Booking"
+        message="Are you sure you want to reject this booking request? This will refund the traveler."
+        confirmText="Reject"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={handleConfirmReject}
+        onCancel={() => setShowConfirmDialog(null)}
+      />
+      <div className="min-h-screen surface-base\">
+        <div className="max-w-5xl mx-auto px-4 py-6 pt-16 sm:pt-24\">
+          {/* Payment Warning Banner */}
         {booking.status === BookingStatus.PendingPayment && (
           <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-2xl flex items-center gap-4 animate-pulse">
             <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center flex-shrink-0">
@@ -353,5 +383,6 @@ export default function GuideBookingDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
     </div>
+    </>
   )
 }

@@ -27,6 +27,7 @@ import {
  CreditCard
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 import { notificationsApi } from '@/src/lib/api/notifications'
 import { getGuideBookings, confirmBooking, rejectBooking, getGuideWaitlist } from '@/src/lib/api/tours'
 import { GuideBookingResponse, BookingStatus, WaitlistResponse } from '@/src/lib/types/tour.types'
@@ -296,6 +297,8 @@ export default function GuideBookingsPage() {
   const [filterStatus, setFilterStatus] = React.useState<BookingStatus | 'all'>('all')
   const [searchTerm, setSearchTerm] = React.useState('')
   const [currentPage, setCurrentPage] = React.useState(1)
+  const [showRejectConfirm, setShowRejectConfirm] = React.useState(false)
+  const [rejectBookingId, setRejectBookingId] = React.useState<number | null>(null)
   const itemsPerPage = 10
 
   useBadgeReset('guide-bookings')
@@ -340,11 +343,17 @@ export default function GuideBookingsPage() {
     }
   }
 
-  const handleReject = async (id: number) => {
-    if (!confirm('Are you sure you want to reject this booking?')) return
+  const handleReject = (id: number) => {
+    setRejectBookingId(id)
+    setShowRejectConfirm(true)
+  }
+
+  const handleConfirmReject = async () => {
+    if (rejectBookingId === null) return
+    setShowRejectConfirm(false)
     setIsActionLoading(true)
     try {
-      await rejectBooking(id)
+      await rejectBooking(rejectBookingId)
       toast.success('Booking rejected')
       window.dispatchEvent(new CustomEvent('badge-refresh'))
       fetchBookings()
@@ -352,6 +361,7 @@ export default function GuideBookingsPage() {
       toast.error(err.response?.data?.message || 'Failed to reject booking')
     } finally {
       setIsActionLoading(false)
+      setRejectBookingId(null)
     }
   }
 
@@ -397,7 +407,21 @@ export default function GuideBookingsPage() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto chat-scrollbar">
+    <>
+      <ConfirmationDialog
+        isOpen={showRejectConfirm}
+        title="Reject Booking"
+        message="Are you sure you want to reject this booking?"
+        confirmText="Reject"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={handleConfirmReject}
+        onCancel={() => {
+          setShowRejectConfirm(false)
+          setRejectBookingId(null)
+        }}
+      />
+      <div className="flex-1 overflow-y-auto chat-scrollbar">
       <div className="max-w-5xl mx-auto py-6 sm:py-10 px-4 sm:px-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-8">
@@ -565,5 +589,6 @@ export default function GuideBookingsPage() {
           )}
         </div>
       </div>
+    </>
   )
 }

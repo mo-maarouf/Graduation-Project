@@ -23,7 +23,7 @@ import { getRevokedGuides, getBlacklistStats } from '@/src/lib/api/blacklist'
 // SEO - HIDE FROM SEARCH ENGINES
 // ============================================================================
 export const metadata: Metadata = {
- title: 'Revoked Guides Registry | SafariHub',
+ title: 'Revoked Guides Registry | Tourongo',
  description: 'Transparency report: Guides who have been permanently removed from our platform.',
  robots: {
  index: false, // ❌ Do not index this page
@@ -70,7 +70,7 @@ export default async function BlacklistPage() {
  
  <p className="text-sm sm:text-base text-theme-secondary max-w-2xl mx-auto">
  To protect our community, we publicly list guides who have been permanently removed 
- from SafariHub after confirmed violations. This is part of our commitment to 
+ from Tourongo after confirmed violations. This is part of our commitment to 
  transparency and traveler safety.
  </p>
  </div>

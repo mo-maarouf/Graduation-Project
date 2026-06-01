@@ -18,7 +18,7 @@ const FAQ_PREVIEW = [
     answer: 'Free cancellation up to 48 hours before the tour. 50% refund between 24–48 hours. No refund within 24 hours.'
   },
   {
-    question: 'Is SafariHub available in other countries?',
+    question: 'Is Tourongo available in other countries?',
     answer: 'We currently operate in Lebanon and Turkey, with active expansion plans to more destinations soon.'
   },
   {
@@ -168,7 +168,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <p className="font-semibold text-theme-primary text-sm">Email</p>
-                <a href="mailto:support@safarihub.com" className="text-xs text-primary-light hover:underline">support@safarihub.com</a>
+                <a href="mailto:support@tourongo.com" className="text-xs text-primary-light hover:underline">support@tourongo.com</a>
               </div>
             </div>
             <div className="flex items-center gap-3 p-4 surface-section rounded-xl border border-theme">

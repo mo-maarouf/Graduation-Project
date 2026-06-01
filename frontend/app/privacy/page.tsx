@@ -29,14 +29,14 @@ import {
 } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | SafariHub',
-  description: 'Learn how SafariHub collects, uses, and protects your personal information.',
+  title: 'Privacy Policy | Tourongo',
+  description: 'Learn how Tourongo collects, uses, and protects your personal information.',
   robots: {
     index: true,
     follow: true,
   },
   openGraph: {
-    title: 'Privacy Policy | SafariHub',
+    title: 'Privacy Policy | Tourongo',
     description: 'Your privacy matters. Read our data protection practices.',
     type: 'website',
   }
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">Privacy Policy</h1>
               <p className="text-lg text-blue-100 mb-6">
-                Your privacy is our priority. Learn how SafariHub protects your data across Lebanon, Turkey, and beyond.
+                Your privacy is our priority. Learn how Tourongo protects your data across Lebanon, Turkey, and beyond.
               </p>
               <div className="inline-flex items-center gap-2 px-4 py-2 surface-card rounded-full text-sm">
                 <Calendar className="w-4 h-4" />
@@ -132,7 +132,7 @@ export default function PrivacyPage() {
             <div className="lg:col-span-3 space-y-12">
               <Section id="introduction" title="Introduction" icon={FileText}>
                 <p>
-                  SafariHub ("we," "our," or "us") is a trust-first travel marketplace dedicated to providing Halal-friendly experiences in Lebanon, Turkey, and expanding regions. We are committed to protecting your personal data and your right to privacy.
+                  Tourongo ("we," "our," or "us") is a trust-first travel marketplace dedicated to providing Halal-friendly experiences in Lebanon, Turkey, and expanding regions. We are committed to protecting your personal data and your right to privacy.
                 </p>
               </Section>
 
@@ -170,13 +170,13 @@ export default function PrivacyPage() {
                 <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-emerald-800 dark:text-emerald-300">
-                    Your financial safety is our priority. Payment details are handled by PCI-compliant partners and are never stored on SafariHub servers.
+                    Your financial safety is our priority. Payment details are handled by PCI-compliant partners and are never stored on Tourongo servers.
                   </p>
                 </div>
               </Section>
 
               <Section id="rights" title="Your Rights" icon={UserCheck}>
-                <p>You have full control over your SafariHub data, including the right to access, rectify, or request deletion of your information. Contact us at <a href="mailto:privacy@safarihub.com" className="text-primary-light hover:underline">privacy@safarihub.com</a>.</p>
+                <p>You have full control over your Tourongo data, including the right to access, rectify, or request deletion of your information. Contact us at <a href="mailto:privacy@tourongo.com" className="text-primary-light hover:underline">privacy@tourongo.com</a>.</p>
               </Section>
 
               <Section id="cookies" title="Cookies and Tracking" icon={Cookie}>
@@ -191,13 +191,13 @@ export default function PrivacyPage() {
                 <div className="mt-4 space-y-3">
                   <p className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-primary-light dark:text-primary-dark" />
-                    <a href="mailto:privacy@safarihub.com" className="text-primary-light dark:text-primary-dark hover:underline">
-                      privacy@safarihub.com
+                    <a href="mailto:privacy@tourongo.com" className="text-primary-light dark:text-primary-dark hover:underline">
+                      privacy@tourongo.com
                     </a>
                   </p>
                   <p className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-primary-light dark:text-primary-dark" />
-                    <span>Data Protection Officer: dpo@safarihub.com</span>
+                    <span>Data Protection Officer: dpo@tourongo.com</span>
                   </p>
                   <p className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-primary-light dark:text-primary-dark" />
@@ -212,7 +212,7 @@ export default function PrivacyPage() {
                   <div>
                     <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">Regional Compliance</h3>
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      SafariHub adheres to data protection standards applicable in Lebanon and Turkey, adopting global best practices for security and user rights.
+                      Tourongo adheres to data protection standards applicable in Lebanon and Turkey, adopting global best practices for security and user rights.
                     </p>
                   </div>
                 </div>

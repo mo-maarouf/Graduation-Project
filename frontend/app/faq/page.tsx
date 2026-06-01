@@ -3,7 +3,7 @@
 // ============================================================================
 // LOCATION: /frontend/src/app/faq/page.tsx
 // 
-// PURPOSE: Answer common questions about SafariHub
+// PURPOSE: Answer common questions about Tourongo
 // 
 // FEATURES:
 // - Categorized FAQs
@@ -61,13 +61,13 @@ const FAQS = [
  {
  id: 1,
  category: 'general',
- question: 'What is SafariHub?',
- answer: 'SafariHub is a travel marketplace connecting travelers with verified local guides across the globe. We focus on halal-friendly tourism, ensuring authentic experiences with trust and safety at the core.'
+ question: 'What is Tourongo?',
+ answer: 'Tourongo is a travel marketplace connecting travelers with verified local guides across the globe. We focus on halal-friendly tourism, ensuring authentic experiences with trust and safety at the core.'
  },
  {
  id: 2,
  category: 'general',
- question: 'Is SafariHub free to use?',
+ question: 'Is Tourongo free to use?',
  answer: 'Yes! Creating an account and browsing tours is completely free. Travelers only pay when booking a tour. Guides pay a commission on successful bookings, with rates as low as 8% for top performers.'
  },
  {
@@ -283,7 +283,7 @@ export default function FAQPage() {
  Frequently Asked Questions
  </h1>
  <p className="text-lg sm:text-xl text-blue-100 max-w-2xl mx-auto">
- Find answers to common questions about SafariHub
+ Find answers to common questions about Tourongo
  </p>
  </div>
  </section>

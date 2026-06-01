@@ -71,7 +71,7 @@ export default function LoginPage() {
  Welcome back
  </motion.div>
  <h1 className="text-3xl sm:text-4xl font-bold text-theme-primary tracking-tight mb-2 sm:mb-3">
- Sign In to <span className="text-primary-light dark:text-primary-dark">SafariHub</span>
+ Sign In to <span className="text-primary-light dark:text-primary-dark">Tourongo</span>
  </h1>
  <p className="text-sm sm:text-base text-theme-muted font-medium">
  Enter your details to access your travel dashboard
@@ -111,10 +111,10 @@ export default function LoginPage() {
  '@context': 'https://schema.org',
  '@type': 'WebPage',
  'name': 'Login',
- 'description': 'Sign in to SafariHub travel marketplace',
+ 'description': 'Sign in to Tourongo travel marketplace',
  'publisher': {
  '@type': 'Organization',
- 'name': 'SafariHub'
+ 'name': 'Tourongo'
  },
  'potentialAction': {
  '@type': 'LoginAction',

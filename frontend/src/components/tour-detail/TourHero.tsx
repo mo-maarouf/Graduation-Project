@@ -451,58 +451,73 @@ export default function TourHero({
  
  {/* Booking mode badge */}
  <motion.span 
+ tabIndex={0}
  whileHover={{ scale: 1.05 }}
- className={`inline-flex items-center justify-center w-11 h-11 rounded-lg shadow-lg transition-all ${bookingMode === BookingMode.INSTANT ? 'bg-primary-light/10 text-primary-light border border-primary-light/20' : 'surface-section text-theme-muted border border-theme '}`}
- title={bookingMode === BookingMode.INSTANT ? 'Instant Confirmation' : 'Request to Book'}
+ className={`group relative cursor-help inline-flex items-center justify-center w-11 h-11 rounded-lg shadow-lg transition-all ${bookingMode === BookingMode.INSTANT ? 'bg-primary-light/10 text-primary-light border border-primary-light/20' : 'surface-section text-theme-muted border border-theme '}`}
  >
  {bookingMode === BookingMode.INSTANT ? (
  <TicketCheck className="w-6 h-6" />
  ) : (
  <Clock className="w-6 h-6" />
  )}
+ <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible group-active:opacity-100 group-active:visible transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl">
+ {bookingMode === BookingMode.INSTANT ? 'Instant Confirmation' : 'Request to Book'}
+ </span>
  </motion.span>
  
  {/* Halal certified badge */}
  {isHalalCertified && (
  <motion.span 
+ tabIndex={0}
  whileHover={{ scale: 1.05 }}
- className="inline-flex items-center justify-center w-11 h-11 bg-emerald-50 dark:bg-emerald-950/30 border border-success-green/20 rounded-lg shadow-lg text-success-green dark:text-emerald-400 transition-all"
- title="Halal Certified"
+ className="group relative cursor-help inline-flex items-center justify-center w-11 h-11 bg-emerald-50 dark:bg-emerald-950/30 border border-success-green/20 rounded-lg shadow-lg text-success-green dark:text-emerald-400 transition-all"
  >
  <MoonStar className="w-6 h-6 fill-current" />
+ <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible group-active:opacity-100 group-active:visible transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl">
+ Halal Certified
+ </span>
  </motion.span>
  )}
  
  {/* Premium badge */}
  {isPremium && (
  <motion.span 
+ tabIndex={0}
  whileHover={{ scale: 1.05 }}
- className="inline-flex items-center justify-center w-11 h-11 bg-amber-50 dark:bg-amber-950/30 border border-accent-light dark:border-accent-dark/20 rounded-lg shadow-lg text-amber-600 dark:text-amber-400 transition-all"
- title="Premium Tour"
+ className="group relative cursor-help inline-flex items-center justify-center w-11 h-11 bg-amber-50 dark:bg-amber-950/30 border border-accent-light dark:border-accent-dark/20 rounded-lg shadow-lg text-amber-600 dark:text-amber-400 transition-all"
  >
  <Star className="w-6 h-6 fill-current" />
+ <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible group-active:opacity-100 group-active:visible transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl">
+ Premium Tour
+ </span>
  </motion.span>
  )}
  
  {/* Family Friendly badge */}
  {isFamilyFriendly && (
  <motion.span 
+ tabIndex={0}
  whileHover={{ scale: 1.05 }}
- className="inline-flex items-center justify-center w-11 h-11 bg-pink-50 dark:bg-pink-950/30 border border-pink-500/20 rounded-lg shadow-lg text-pink-600 dark:text-pink-400 transition-all"
- title="Family Friendly"
+ className="group relative cursor-help inline-flex items-center justify-center w-11 h-11 bg-pink-50 dark:bg-pink-950/30 border border-pink-500/20 rounded-lg shadow-lg text-pink-600 dark:text-pink-400 transition-all"
  >
  <Baby className="w-6 h-6" />
+ <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible group-active:opacity-100 group-active:visible transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl">
+ Family Friendly
+ </span>
  </motion.span>
  )}
  
  {/* Group Discount badge */}
  {hasGroupDiscount && (
  <motion.span 
+ tabIndex={0}
  whileHover={{ scale: 1.05 }}
- className="inline-flex items-center justify-center w-11 h-11 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg shadow-sm text-purple-600 dark:text-purple-400 transition-all"
- title="Group Discount"
+ className="group relative cursor-help inline-flex items-center justify-center w-11 h-11 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg shadow-sm text-purple-600 dark:text-purple-400 transition-all"
  >
  <BadgePercent className="w-6 h-6" />
+ <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible group-active:opacity-100 group-active:visible transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl">
+ Group Discount
+ </span>
  </motion.span>
  )}
  

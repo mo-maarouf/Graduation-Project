@@ -204,7 +204,7 @@ export default function GuideDirectoryPage() {
  <div className="relative lg:w-1/3 flex justify-center">
  <div className="p-4 rounded-3xl surface-card  border border-white/20 shadow-2xl rotate-3">
  <ShieldCheck className="w-24 h-24 text-blue-200 mb-4" />
- <div className="text-xs font-bold tracking-normal capitalize opacity-60 mb-2">SafariHub Certified</div>
+ <div className="text-xs font-bold tracking-normal capitalize opacity-60 mb-2">Tourongo Certified</div>
  <div className="text-xl font-bold">Verification Engine</div>
  </div>
  </div>

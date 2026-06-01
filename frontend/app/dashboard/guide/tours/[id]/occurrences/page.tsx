@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
+import { confirmDialog } from '@/src/lib/utils/confirm'
 import CalendarPicker from '@/src/components/ui/CalendarPicker'
 import { 
  getGuideTour, 
@@ -674,7 +675,8 @@ export default function TourOccurrencesPage() {
 
  if (action === 'edit') {
  if (hasBookings) {
- if (!confirm('WARNING: This departure has active bookings. Travelers have already paid. Changing the date or time may violate the cancellation policy. Proceed with CAUTION.')) {
+ const confirmed = await confirmDialog('WARNING: This departure has active bookings. Travelers have already paid. Changing the date or time may violate the cancellation policy. Proceed with CAUTION.')
+ if (!confirmed) {
  return
  }
  }
@@ -688,7 +690,8 @@ export default function TourOccurrencesPage() {
  ? 'DANGER: This departure has active bookings! Deleting it will strand travelers who have already paid. You MUST handle refunds and notifications manually if you proceed. Are you ABSOLUTELY sure?'
  : 'Permanently delete this occurrence? This action cannot be undone.'
  
- if (confirm(confirmMsg)) {
+ const confirmed = await confirmDialog(confirmMsg)
+ if (confirmed) {
  try {
  await deleteOccurrence(id)
  toast.success('Occurrence purged')
@@ -773,7 +776,8 @@ export default function TourOccurrencesPage() {
  }
 
  const handleWithdrawReview = async () => {
- if (!confirm('Withdraw this tour from the review queue? It will return to DRAFT status and you can make further edits.')) {
+ const confirmed = await confirmDialog('Withdraw this tour from the review queue? It will return to DRAFT status and you can make further edits.')
+ if (!confirmed) {
  return
  }
 

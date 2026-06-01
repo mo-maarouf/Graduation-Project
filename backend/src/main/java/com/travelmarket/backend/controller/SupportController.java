@@ -92,7 +92,7 @@ public class SupportController {
             "<p>We have received your support request regarding <strong>%s</strong>.</p>" +
             "<p>Our team will review your message and get back to you shortly. Here is a copy of your message:</p>" +
             "<blockquote style='border-left: 4px solid #ddd; padding-left: 10px; color: #555;'>%s</blockquote>" +
-            "<p>Best regards,<br/>SafariHub Support Team</p>",
+            "<p>Best regards,<br/>Tourongo Support Team</p>",
             ticket.getId(), request.getName(), request.getSubject(), request.getMessage()
         );
         emailService.sendHtml(request.getEmail(), "Support Request Received: " + request.getSubject(), userEmailHtml);

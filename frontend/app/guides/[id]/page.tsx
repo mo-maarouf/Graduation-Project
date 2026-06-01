@@ -51,15 +51,15 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
  return (
  <motion.div 
  whileHover={{ y: -4, boxShadow: '0 12px 20px -5px rgb(0 0 0 / 0.1)' }}
- className="p-6 surface-card border border-theme dark:border-white/5 rounded-2xl shadow-sm hover:shadow-xl hover:border-primary-light dark:hover:border-primary-dark/30 transition-all duration-300"
+ className="p-4 sm:p-6 surface-card border border-theme dark:border-white/5 rounded-2xl shadow-sm hover:shadow-xl hover:border-primary-light dark:hover:border-primary-dark/30 transition-all duration-300"
  >
- <div className="flex items-center gap-4 text-left">
- <div className={`p-3 rounded-xl border ${colorClasses[color as keyof typeof colorClasses]}`}>
+ <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 xl:gap-4 text-left">
+ <div className={`p-2.5 sm:p-3 rounded-xl border ${colorClasses[color as keyof typeof colorClasses]}`}>
  <Icon className="w-5 h-5" />
  </div>
- <div>
- <div className="text-2xl font-bold text-theme-primary leading-none mb-1">{value}</div>
- <p className="text-xs font-bold capitalize tracking-normal text-theme-muted">{label}</p>
+ <div className="min-w-0 break-words">
+ <div className="text-xl sm:text-2xl font-bold text-theme-primary leading-none mb-1">{value}</div>
+ <p className="text-[10px] sm:text-xs font-bold capitalize tracking-normal text-theme-muted break-words leading-tight">{label}</p>
  </div>
  </div>
  </motion.div>
@@ -127,10 +127,10 @@ export default function GuideProfilePage({ params }: { params: Promise<{ id: str
 
  return (
  <PageLayout>
- <main className="flex-1 w-full surface-card pb-20 relative">
+ <main className="flex-1 w-full pb-20 relative">
  
  {/* Immersive Cover Image Area */}
- <div className="relative w-full h-[160px] md:h-[200px] overflow-hidden group">
+ <div className="relative w-full h-[200px] md:h-[300px] overflow-hidden group">
  <Image
  src={guide.coverImageUrl || '/images/guides/default-cover.jpg'}
  alt={`${guide.name} cover`}
@@ -234,10 +234,10 @@ export default function GuideProfilePage({ params }: { params: Promise<{ id: str
  
  {/* Left Column (Portfolio & Bio) */}
  <div className="lg:col-span-2 space-y-16">
- <section className="surface-card rounded-[2rem] p-10 md:p-12 border border-theme shadow-xl relative overflow-hidden group hover:translate-y-[-4px] hover:shadow-blue-500/10 transition-all duration-300">
+ <section className="surface-card rounded-[2rem] p-6 md:p-12 border border-theme shadow-xl relative overflow-hidden group hover:translate-y-[-4px] hover:shadow-blue-500/10 transition-all duration-300">
  <div className="absolute top-0 right-0 w-32 h-32 bg-primary-light/5 rounded-full -mr-16 -mt-16 blur-2xl" />
  <h2 className="text-2xl font-bold text-theme-primary mb-6 tracking-tight">Biography</h2>
- <div className="prose prose-lg dark:prose-invert max-w-none text-theme-secondary leading-relaxed font-bold">
+ <div className="prose prose-lg dark:prose-invert max-w-none text-theme-secondary leading-relaxed font-bold break-words whitespace-pre-wrap">
  {guide.bio || 'Your host is a professional local guide with years of experience leading tours and creating memorable moments.'}
  </div>
  </section>
@@ -258,7 +258,7 @@ export default function GuideProfilePage({ params }: { params: Promise<{ id: str
  <div className="space-y-8">
  
  {/* Specialized Expertise Card */}
- <div className="surface-section rounded-[2rem] border border-theme shadow-sm p-10 space-y-10 hover:shadow-lg hover:translate-y-[-2px] transition-all duration-300 hover:border-primary-light dark:hover:border-primary-dark/10">
+ <div className="surface-section rounded-[2rem] border border-theme shadow-sm p-6 md:p-10 space-y-10 hover:shadow-lg hover:translate-y-[-2px] transition-all duration-300 hover:border-primary-light dark:hover:border-primary-dark/10">
  <div>
  <h3 className="text-[10px] font-bold text-theme-secondary mb-6 capitalize tracking-[0.25em] flex items-center gap-2">
  <Globe className="w-4 h-4 text-primary-light dark:text-primary-dark dark:text-primary-dark " />
@@ -291,7 +291,7 @@ export default function GuideProfilePage({ params }: { params: Promise<{ id: str
  {/* Advanced Trust Seal Card */}
  <motion.div 
  whileHover={{ y: -4 }}
- className="surface-card text-theme-primary rounded-[2rem] p-10 shadow-xl dark:shadow-2xl relative overflow-hidden group border border-theme dark:border-white/5 hover:shadow-2xl transition-all duration-300"
+ className="surface-card text-theme-primary rounded-[2rem] p-6 md:p-10 shadow-xl dark:shadow-2xl relative overflow-hidden group border border-theme dark:border-white/5 hover:shadow-2xl transition-all duration-300"
  >
  <Shield className="absolute -bottom-6 -right-6 w-24 h-24 text-primary-light dark:text-primary-dark/10 rotate-12 transition-transform duration-500" />
  <h3 className="text-lg font-bold mb-6 flex items-center gap-2">

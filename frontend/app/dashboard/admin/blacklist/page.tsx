@@ -268,7 +268,7 @@ const AddToBlacklistModal = ({ isOpen, onClose, onAdd }: any) => {
 
  const handleSubmit = () => {
  if (!formData.guideId.trim() || !formData.description.trim()) {
- alert('Please fill in all required fields')
+ toast.error('Please fill in all required fields')
  return
  }
  onAdd(formData)

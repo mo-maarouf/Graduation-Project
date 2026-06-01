@@ -291,7 +291,7 @@ const PayoutRow = ({ payout }: { payout: Payout }) => {
 
  const handleDownloadReceipt = () => {
  const receipt = `
-SAFARIHUB - PAYOUT RECEIPT
+TOURONGO - PAYOUT RECEIPT
 ==========================
 Payout ID: ${payout.payoutId}
 Date: ${formatDate(payout.completedAt || payout.requestedAt)}
@@ -303,7 +303,7 @@ Status: ${payout.status}
 Tour: ${payout.tourTitle || 'Multiple tours'}
 Booking: ${payout.bookingId || 'N/A'}
 
-Thank you for being a SafariHub guide!
+Thank you for being a Tourongo guide!
  `
  
  const blob = new Blob([receipt], { type: 'text/plain' })

@@ -31,6 +31,7 @@ import {
 import toast from 'react-hot-toast'
 import { getGuideTour, pauseTour, resumeTour, archiveTour, submitTourForReview, withdrawTourFromReview } from '@/src/lib/api/tours'
 import { TourTemplateResponse, TourTemplateStatus } from '@/src/lib/types/tour.types'
+import { confirmDialog } from '@/src/lib/utils/confirm'
 import GuideTourSummarySkeleton from './skeleton'
 
 // ============================================================================
@@ -166,7 +167,8 @@ export default function TourSummaryPage({ params }: { params: Promise<{ id: stri
  toast.success('Tour published again')
  break
  case 'archive':
- if (confirm('Are you sure? Archiving is permanent and will hide this tour from all active lists.')) {
+ const confirmed = await confirmDialog('Are you sure? Archiving is permanent and will hide this tour from all active lists.')
+ if (confirmed) {
  await archiveTour(tour.id)
  toast.success('Tour archived')
  }

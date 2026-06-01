@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -48,11 +50,45 @@ public class AdminSupportController {
         
         return ticketRepository.findById(id)
                 .map(ticket -> {
-                    ticket.setStatus(SupportTicket.TicketStatus.valueOf(body.get("status")));
+                    SupportTicket.TicketStatus newStatus = SupportTicket.TicketStatus.valueOf(body.get("status"));
+                    SupportTicket.TicketStatus currentStatus = ticket.getStatus();
+                    
+                    if (currentStatus == SupportTicket.TicketStatus.RESOLVED) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot change status of a resolved ticket");
+                    }
+                    if (currentStatus == SupportTicket.TicketStatus.OPEN && newStatus == SupportTicket.TicketStatus.RESOLVED) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket must be IN_PROGRESS before it can be RESOLVED");
+                    }
+
+                    ticket.setStatus(newStatus);
                     if (body.containsKey("adminNote")) {
                         ticket.setAdminNote(body.get("adminNote"));
                     }
-                    return ResponseEntity.ok(ticketRepository.save(ticket));
+                    SupportTicket savedTicket = ticketRepository.save(ticket);
+                    
+                    // Send email notification to user about status change
+                    String emailHtml = String.format(
+                        "<h3>Update on your Support Ticket #%d</h3>" +
+                        "<p>Hi %s,</p>" +
+                        "<p>The status of your support ticket (<b>%s</b>) has been changed to: <b>%s</b></p>" +
+                        "<p>Best regards,<br/>Tourongo Support Team</p>",
+                        savedTicket.getId(), savedTicket.getName(), savedTicket.getSubject(), savedTicket.getStatus()
+                    );
+                    emailService.sendHtml(savedTicket.getEmail(), "Status Update: Support Ticket #" + savedTicket.getId(), emailHtml);
+
+                    // Send in-app notification if the user is registered
+                    userRepository.findByEmail(savedTicket.getEmail()).ifPresent(user -> {
+                        notificationService.createNotificationInAppOnly(
+                            user.getId(),
+                            NotificationType.SYSTEM_ALERT,
+                            "Support Ticket Updated",
+                            "Your support ticket status is now: " + savedTicket.getStatus(),
+                            savedTicket.getId().toString(),
+                            "SUPPORT_TICKET"
+                        );
+                    });
+                    
+                    return ResponseEntity.ok(savedTicket);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -64,6 +100,10 @@ public class AdminSupportController {
         
         SupportTicket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        if (ticket.getStatus() == SupportTicket.TicketStatus.RESOLVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot send messages to a resolved ticket");
+        }
 
         SupportMessage message = SupportMessage.builder()
                 .ticket(ticket)
@@ -81,7 +121,7 @@ public class AdminSupportController {
             "<p>Hi %s,</p>" +
             "<p>An admin has replied to your support ticket:</p>" +
             "<blockquote style='border-left: 4px solid #ddd; padding-left: 10px; color: #555;'>%s</blockquote>" +
-            "<p>Best regards,<br/>SafariHub Support Team</p>",
+            "<p>Best regards,<br/>Tourongo Support Team</p>",
             ticket.getId(), ticket.getName(), message.getContent()
         );
         emailService.sendHtml(ticket.getEmail(), "Update on Support Ticket #" + ticket.getId(), emailHtml);

@@ -3,7 +3,7 @@
 // ============================================================================
 // LOCATION: /frontend/app/terms/page.tsx
 // 
-// PURPOSE: Display legal terms and conditions for using SafariHub
+// PURPOSE: Display legal terms and conditions for using Tourongo
 // ============================================================================
 
 import { Metadata } from 'next'
@@ -24,8 +24,8 @@ import {
 } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service | SafariHub',
-  description: 'Read our terms and conditions for using SafariHub travel marketplace.',
+  title: 'Terms of Service | Tourongo',
+  description: 'Read our terms and conditions for using Tourongo travel marketplace.',
   robots: {
     index: true,
     follow: true,
@@ -119,7 +119,7 @@ export default function TermsPage() {
             {/* Main */}
             <div className="lg:col-span-3 space-y-12">
               <Section id="acceptance" title="1. Acceptance of Terms">
-                <p>By using SafariHub, you agree to these Terms. If you do not agree, you may not use the Platform.</p>
+                <p>By using Tourongo, you agree to these Terms. If you do not agree, you may not use the Platform.</p>
               </Section>
 
               <Section id="eligibility" title="2. Eligibility">
@@ -130,7 +130,7 @@ export default function TermsPage() {
                 <p>You are responsible for your account security. Notify us immediately of unauthorized access. We reserve the right to suspend accounts for suspicious activity.</p>
                 <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 text-xs sm:text-sm">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <p className="text-amber-800 dark:text-amber-300">SafariHub is not liable for losses caused by unauthorized account access due to user negligence.</p>
+                  <p className="text-amber-800 dark:text-amber-300">Tourongo is not liable for losses caused by unauthorized account access due to user negligence.</p>
                 </div>
               </Section>
 
@@ -150,7 +150,7 @@ export default function TermsPage() {
               </Section>
 
               <Section id="halal" title="7. Halal-Friendly Standards">
-                <p>SafariHub is trust-first. Guides must ensure all meals are Halal-certified and itineraries respect prayer times and family-friendly ethics.</p>
+                <p>Tourongo is trust-first. Guides must ensure all meals are Halal-certified and itineraries respect prayer times and family-friendly ethics.</p>
               </Section>
 
               <Section id="regional" title="8. Regional Operations (Lebanon & Turkey)">
@@ -158,14 +158,14 @@ export default function TermsPage() {
               </Section>
 
               <Section id="disputes" title="11. Dispute Resolution">
-                <p>Contact SafariHub support within 48h of tour completion for any issues. Payouts are frozen during resolution.</p>
+                <p>Contact Tourongo support within 48h of tour completion for any issues. Payouts are frozen during resolution.</p>
               </Section>
 
               <Section id="contact" title="14. Contact Us">
                 <div className="mt-4 space-y-3">
                   <p className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-primary-light" />
-                    <a href="mailto:legal@safarihub.com" className="hover:underline">legal@safarihub.com</a>
+                    <a href="mailto:legal@tourongo.com" className="hover:underline">legal@tourongo.com</a>
                   </p>
                   <p className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-primary-light" />
@@ -179,7 +179,7 @@ export default function TermsPage() {
                   <CheckCircle className="w-6 h-6 text-emerald-600" />
                   <div>
                     <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">Agreement Confirmation</h3>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-400">By using SafariHub, you acknowledge you have read these Terms. Last updated: {LAST_UPDATED}</p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-400">By using Tourongo, you acknowledge you have read these Terms. Last updated: {LAST_UPDATED}</p>
                   </div>
                 </div>
               </div>

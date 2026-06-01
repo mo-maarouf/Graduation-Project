@@ -45,18 +45,18 @@ import PageLayout from '@/src/components/layout/PageLayout'
 // ============================================================================
 
 export const metadata: Metadata = {
- title: 'Become a Guide | SafariHub - Share Your Expertise',
- description: 'Join SafariHub as a verified guide. Share your local knowledge, earn money, and connect with travelers from around the world.',
+ title: 'Become a Guide | Tourongo - Share Your Expertise',
+ description: 'Join Tourongo as a verified guide. Share your local knowledge, earn money, and connect with travelers from around the world.',
  keywords: ['become a guide', 'tour guide', 'travel guide', 'earn money', 'global', 'worldwide', 'halal tourism'],
  openGraph: {
- title: 'Become a Guide on SafariHub',
+ title: 'Become a Guide on Tourongo',
  description: 'Share your expertise, earn money, and connect with travelers.',
  images: [
  {
  url: '/images/og/guide-onboarding.jpg',
  width: 1200,
  height: 630,
- alt: 'SafariHub Guide Program'
+ alt: 'Tourongo Guide Program'
  }
  ]
  }
@@ -420,7 +420,7 @@ export default function GuideOnboardingPage() {
 
  {/* Subheadline */}
  <p className="text-lg sm:text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
- Join SafariHub as a verified guide. Connect with travelers seeking authentic, 
+ Join Tourongo as a verified guide. Connect with travelers seeking authentic, 
  halal-friendly experiences across the globe.
  </p>
 

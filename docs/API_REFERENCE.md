@@ -1,6 +1,6 @@
-# SafariHub API Reference
+# Tourongo API Reference
 
-This document provides a high-level overview of the available REST API endpoints in the SafariHub backend.
+This document provides a high-level overview of the available REST API endpoints in the Tourongo backend.
 
 > **Note:** All protected endpoints require a valid JWT Bearer token in the `Authorization` header.
 

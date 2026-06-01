@@ -68,7 +68,7 @@ export default function TicketPage() {
 
  const handleDownload = () => {
  // In Phase 2: Generate PDF or download image
- alert('Download feature coming in Phase 2')
+  toast.loading('Download feature coming in Phase 2')
  }
 
  const handlePrint = () => {
@@ -78,7 +78,7 @@ export default function TicketPage() {
  // Create a canvas or use html2canvas in Phase 2
  // For now, create a text version
  const ticket = `
-SAFARIHUB - TICKET
+TOURONGO - TICKET
 ==================
 Booking: ${booking.id}
 Tour: ${booking.tourTitle}
@@ -102,7 +102,7 @@ Present this code to your guide: ${booking.qrCode}
  toast.success('Ticket downloaded!')
 }
 const handleEmailTicket = () => {
- const subject = encodeURIComponent(`Your SafariHub Ticket: ${booking.tourTitle}`)
+ const subject = encodeURIComponent(`Your Tourongo Ticket: ${booking.tourTitle}`)
  const body = encodeURIComponent(
  `Here's your ticket for ${booking.tourTitle}\n\n` +
  `Date: ${formattedDate} at ${formattedTime}\n` +
@@ -139,7 +139,7 @@ const handleEmailTicket = () => {
  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 px-6 py-4 text-white">
  <div className="flex items-center justify-between">
  <div>
- <h1 className="text-xl font-bold">SafariHub</h1>
+ <h1 className="text-xl font-bold">Tourongo</h1>
  <p className="text-xs text-blue-100">Booking Ticket</p>
  </div>
  <QrCode className="w-8 h-8 text-white/80" />

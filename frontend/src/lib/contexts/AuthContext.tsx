@@ -240,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  try {
  await apiAuthLogout();
  } catch (error) {
- console.error('Logout error', error);
+ // Silent fail: we'll clear the token and redirect anyway.
  } finally {
  clearAccessToken();
  setUser(null);
@@ -254,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  try {
  await apiAuthLogoutAll();
  } catch (error) {
- console.error('Logout-all error', error);
+ // Silent fail
  } finally {
  clearAccessToken();
  setUser(null);

@@ -578,7 +578,7 @@ export const MOCK_TOUR_DETAIL: TourDetail = {
  address: 'Binbirdirek, Sultanahmet Meydanı, 34122 Fatih/İstanbul, Turkey',
  lat: 41.0055,
  lng: 28.9769,
- instructions: 'Look for the guide holding an orange sign with"SafariHub". Arrive 10 minutes before start time.'
+ instructions: 'Look for the guide holding an orange sign with"Tourongo". Arrive 10 minutes before start time.'
  },
 
  inclusions: [

@@ -14,6 +14,7 @@ import {
   X,
   Info
 } from 'lucide-react'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 import {
   getTravelerPaymentMethods,
   saveTravelerPaymentMethod,
@@ -36,6 +37,8 @@ export default function TravelerPaymentsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [showTestCards, setShowTestCards] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [cardToDelete, setCardToDelete] = useState<number | null>(null)
 
   // Form state — mirrors MockPaymentSimulator
   const [cardNumber, setCardNumber] = useState('')
@@ -209,14 +212,22 @@ export default function TravelerPaymentsPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to remove this card?')) return
+  const handleDelete = (id: number) => {
+    setCardToDelete(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (cardToDelete === null) return
     try {
-      await deleteTravelerPaymentMethod(id)
+      await deleteTravelerPaymentMethod(cardToDelete)
       toast.success('Card removed')
       fetchMethods()
     } catch {
       toast.error('Failed to remove card')
+    } finally {
+      setDeleteDialogOpen(false)
+      setCardToDelete(null)
     }
   }
 
@@ -230,6 +241,20 @@ export default function TravelerPaymentsPage() {
   if (isLoading && methods.length === 0) return <TravelerPaymentsSkeleton />
 
   return (
+    <>
+      <ConfirmationDialog
+        isOpen={deleteDialogOpen}
+        title="Remove Card"
+        message="Are you sure you want to remove this card from your payment methods?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteDialogOpen(false)
+          setCardToDelete(null)
+        }}
+      />
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
@@ -642,5 +667,6 @@ export default function TravelerPaymentsPage() {
         )}
       </AnimatePresence>
     </div>
+    </>
   )
 }

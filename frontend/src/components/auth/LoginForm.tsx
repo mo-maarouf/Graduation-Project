@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
  Mail,
  Lock,
@@ -150,13 +151,6 @@ export default function LoginForm() {
  await login(formData.email, formData.password, formData.rememberMe);
  // login will redirect based on role – no further action needed
  } catch (error: any) {
- console.error('Login error:', error);
- if (error.response) {
- console.log('Response data:', JSON.stringify(error.response.data, null, 2));
- console.log('Response status:', error.response.status);
- console.log('Response headers:', error.response.headers);
- }
- // ... rest of error handling
  // Try to extract error message from backend response
  let message = 'Invalid email or password. Please try again.';
  if (error.response?.data?.message) {
@@ -181,7 +175,7 @@ export default function LoginForm() {
     window.location.href = `${backendUrl}/api/auth/oauth2/google/start?role=Traveler`;
 
  } else {
- alert(`${provider} login coming in Phase 3`);
+  toast.loading(`${provider} login coming in Phase 3`);
  }
  };
 

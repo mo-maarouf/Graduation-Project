@@ -20,6 +20,9 @@ import com.travelmarket.backend.tour.enums.TourOccurrenceStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import com.travelmarket.backend.notification.service.NotificationService;
+import com.travelmarket.backend.notification.enums.NotificationType;
+import com.travelmarket.backend.service.EmailService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +44,8 @@ public class TourTemplateService {
     private final AdminAuditService adminAuditService;
     private final TourMapper tourMapper;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
+    private final EmailService emailService;
 
     public TourTemplateService(
             TourTemplateRepository tourTemplateRepository,
@@ -50,7 +55,9 @@ public class TourTemplateService {
             UserRepository userRepository,
             AdminAuditService adminAuditService,
             TourMapper tourMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            NotificationService notificationService,
+            EmailService emailService) {
         this.tourTemplateRepository = tourTemplateRepository;
         this.tourOccurrenceRepository = tourOccurrenceRepository;
         this.tourMediaRepository = tourMediaRepository;
@@ -59,6 +66,8 @@ public class TourTemplateService {
         this.adminAuditService = adminAuditService;
         this.tourMapper = tourMapper;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
+        this.emailService = emailService;
     }
 
     // ── Internal helpers ────────────────────────────────────────────────────────
@@ -405,6 +414,16 @@ return buildResponse(t);
                             "Current status: " + t.getStatus());
         }
 
+        if (!Boolean.TRUE.equals(guide.getIdVerified())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You must be fully verified (ID approved) to submit a tour for review.");
+        }
+        if (!Boolean.TRUE.equals(guide.getUser().getIsEmailVerified())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please verify your email address before submitting a tour.");
+        }
+        if (!Boolean.TRUE.equals(guide.getUser().getProfileCompleted())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please complete your profile before submitting a tour.");
+        }
+
         // Clear the rejection reason — guide is resubmitting with changes
         t.setRejectionReason(null);
         t.setStatus(TourTemplateStatus.PENDING_REVIEW);
@@ -586,6 +605,22 @@ return buildResponse(t);
         adminAuditService.log(admin, "TOUR_REJECTED", "TourTemplate", id,
                 "Tour rejected: " + t.getTitle(),
                 java.util.Map.of("reason", rejectionReason));
+
+        if (t.getGuide() != null && t.getGuide().getUser() != null) {
+            notificationService.createNotification(
+                    t.getGuide().getUser().getId(),
+                    NotificationType.TOUR_REJECTED,
+                    "Tour Rejected",
+                    "Your tour '" + t.getTitle() + "' was rejected. Reason: " + rejectionReason.trim(),
+                    t.getId().toString(),
+                    "TOUR"
+            );
+            emailService.send(
+                    t.getGuide().getUser().getEmail(),
+                    "Tour Review Update: Rejected",
+                    "Unfortunately, your tour '" + t.getTitle() + "' was not accepted.\n\nReason: " + rejectionReason.trim() + "\n\nPlease make the necessary changes and re-submit from your dashboard."
+            );
+        }
 
         return buildResponse(t);
     }

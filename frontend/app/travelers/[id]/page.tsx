@@ -48,20 +48,20 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
  }
 
  return (
- <motion.div 
- whileHover={{ y: -4, boxShadow: '0 12px 20px -5px rgb(0 0 0 / 0.1)' }}
- className="p-6 surface-card border border-theme dark:border-white/5 rounded-2xl shadow-sm hover:shadow-xl hover:border-primary-light dark:hover:border-primary-dark/30 transition-all duration-300"
- >
- <div className="flex items-center gap-4 text-left">
- <div className={`p-3 rounded-xl border ${colorClasses[color as keyof typeof colorClasses]}`}>
- <Icon className="w-5 h-5" />
- </div>
- <div>
- <div className="text-2xl font-bold text-theme-primary leading-none mb-1">{value}</div>
- <p className="text-xs font-bold capitalize tracking-normal text-theme-muted">{label}</p>
- </div>
- </div>
- </motion.div>
+  <motion.div 
+  whileHover={{ y: -4, boxShadow: '0 12px 20px -5px rgb(0 0 0 / 0.1)' }}
+  className="p-4 sm:p-6 surface-card border border-theme dark:border-white/5 rounded-2xl shadow-sm hover:shadow-xl hover:border-primary-light dark:hover:border-primary-dark/30 transition-all duration-300"
+  >
+  <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 xl:gap-4 text-left">
+  <div className={`p-2.5 sm:p-3 rounded-xl border ${colorClasses[color as keyof typeof colorClasses]}`}>
+  <Icon className="w-5 h-5" />
+  </div>
+  <div className="min-w-0 break-words">
+  <div className="text-xl sm:text-2xl font-bold text-theme-primary leading-none mb-1">{value}</div>
+  <p className="text-[10px] sm:text-xs font-bold capitalize tracking-normal text-theme-muted break-words leading-tight">{label}</p>
+  </div>
+  </div>
+  </motion.div>
  )
 }
 
@@ -124,10 +124,10 @@ export default function TravelerProfilePage({ params }: { params: Promise<{ id: 
 
  return (
  <PageLayout>
- <main className="flex-1 w-full surface-card pb-20 relative">
+ <main className="flex-1 w-full pb-20 relative">
  
  {/* Immersive Cover Image Area */}
- <div className="relative w-full h-[350px] md:h-[450px] overflow-hidden group">
+ <div className="relative w-full h-[200px] md:h-[300px] overflow-hidden group">
  <Image
  src={traveler.coverImageUrl || '/images/travelers/default-cover.jpg'}
  alt={`${traveler.fullName} cover`}
@@ -229,19 +229,19 @@ export default function TravelerProfilePage({ params }: { params: Promise<{ id: 
  
  {/* Left Column (Bio & Experience) */}
  <div className="lg:col-span-2 space-y-16">
- <motion.section 
- whileHover={{ y: -4 }}
- className="surface-card rounded-[2rem] p-10 md:p-12 border border-theme shadow-xl relative overflow-hidden group transition-all duration-300 hover:shadow-2xl hover:border-primary-light dark:hover:border-primary-dark/20"
- >
- <div className="absolute top-0 right-0 w-32 h-32 bg-primary-light/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-light/10 transition-colors" />
- <h2 className="text-2xl font-bold text-theme-primary mb-6 tracking-tight">About Me</h2>
- <div className="prose prose-lg dark:prose-invert max-w-none text-theme-secondary leading-relaxed font-bold">
- {traveler.bio || 'This traveler is passionate about discovering new places, meeting local people, and experiencing diverse cultures through authentic travel experiences.'}
- </div>
- </motion.section>
+  <motion.section 
+  whileHover={{ y: -4 }}
+  className="surface-card rounded-[2rem] p-6 md:p-12 border border-theme shadow-xl relative overflow-hidden group transition-all duration-300 hover:shadow-2xl hover:border-primary-light dark:hover:border-primary-dark/20"
+  >
+  <div className="absolute top-0 right-0 w-32 h-32 bg-primary-light/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-light/10 transition-colors" />
+  <h2 className="text-2xl font-bold text-theme-primary mb-6 tracking-tight">About Me</h2>
+  <div className="prose prose-lg dark:prose-invert max-w-none text-theme-secondary leading-relaxed font-bold break-words whitespace-pre-wrap">
+  {traveler.bio || 'This traveler is passionate about discovering new places, meeting local people, and experiencing diverse cultures through authentic travel experiences.'}
+  </div>
+  </motion.section>
 
  {/* Preferences / Past Experiences Placeholder Section */}
- <section className="surface-section rounded-[2rem] p-10 md:p-12 border border-dashed border-theme relative overflow-hidden group hover:shadow-xl transition-all duration-500">
+ <section className="surface-section rounded-[2rem] p-6 md:p-12 border border-dashed border-theme relative overflow-hidden group hover:shadow-xl transition-all duration-500">
  <div className="flex flex-col items-center justify-center text-center py-10">
  <Compass className="w-16 h-16 text-primary-light dark:text-primary-dark/20 mb-6" />
  <h3 className="text-xl font-bold text-theme-primary mb-2">My Travel Stories</h3>
@@ -256,7 +256,7 @@ export default function TravelerProfilePage({ params }: { params: Promise<{ id: 
  <div className="space-y-8">
  
  {/* Preferences Card */}
- <div className="surface-section rounded-[2rem] border border-theme shadow-sm p-10 space-y-10 hover:shadow-lg hover:translate-y-[-2px] transition-all duration-300 hover:border-primary-light dark:hover:border-primary-dark/10">
+ <div className="surface-section rounded-[2rem] border border-theme shadow-sm p-6 md:p-10 space-y-10 hover:shadow-lg hover:translate-y-[-2px] transition-all duration-300 hover:border-primary-light dark:hover:border-primary-dark/10">
  <div>
  <h3 className="text-[10px] font-bold text-theme-secondary mb-6 capitalize tracking-[0.25em] flex items-center gap-2">
  <Globe className="w-4 h-4 text-primary-light dark:text-primary-dark dark:text-primary-dark " />
@@ -291,7 +291,7 @@ export default function TravelerProfilePage({ params }: { params: Promise<{ id: 
  {/* Advanced Trust Seal Card - Reflected for Travelers */}
  <motion.div 
  whileHover={{ y: -4 }}
- className="surface-card text-theme-primary rounded-[2rem] p-10 shadow-xl dark:shadow-2xl relative overflow-hidden group border border-theme dark:border-white/5 transition-all duration-300 hover:shadow-2xl"
+ className="surface-card text-theme-primary rounded-[2rem] p-6 md:p-10 shadow-xl dark:shadow-2xl relative overflow-hidden group border border-theme dark:border-white/5 transition-all duration-300 hover:shadow-2xl"
  >
  <Shield className="absolute -bottom-6 -right-6 w-24 h-24 text-primary-light dark:text-primary-dark/10 rotate-12 transition-transform duration-500" />
  <h3 className="text-lg font-bold mb-6 flex items-center gap-2">

@@ -12,6 +12,10 @@ public enum NotificationType {
     VERIFICATION_APPROVED,
     VERIFICATION_REJECTED,
     
+    // Tours
+    TOUR_APPROVED,
+    TOUR_REJECTED,
+    
     // Bookings
     BOOKING_CREATED,
     BOOKING_CONFIRMED,

@@ -259,11 +259,11 @@ export default function WishlistContent() {
 
  const handleShareWishlist = () => {
  const tourNames = wishlist.map(t => t.title).join('\n- ')
- const text = `My SafariHub Wishlist:\n- ${tourNames}`
+ const text = `My Tourongo Wishlist:\n- ${tourNames}`
  
  if (navigator.share) {
  navigator.share({
- title: 'My SafariHub Wishlist',
+ title: 'My Tourongo Wishlist',
  text: text,
  url: window.location.href
  })

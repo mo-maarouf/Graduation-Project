@@ -1,6 +1,6 @@
-# SafariHub - Travel & Tourism Marketplace
+# Tourongo - Travel & Tourism Marketplace
 
-Welcome to **SafariHub**, a trust-first, Halal-friendly, Lebanon-first travel and tourism marketplace. This platform connects enthusiastic travelers with verified local guides, facilitating authentic experiences, secure bookings, and seamless communication.
+Welcome to **Tourongo**, a trust-first, Halal-friendly, Lebanon-first travel and tourism marketplace. This platform connects enthusiastic travelers with verified local guides, facilitating authentic experiences, secure bookings, and seamless communication.
 
 ## 🚀 Key Features
 

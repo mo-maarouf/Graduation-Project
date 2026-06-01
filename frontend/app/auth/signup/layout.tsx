@@ -1,8 +1,8 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
- title: 'Create Account | SafariHub - Travel Marketplace',
- description: 'Join SafariHub to discover authentic travel experiences with verified guides.',
+ title: 'Create Account | Tourongo - Travel Marketplace',
+ description: 'Join Tourongo to discover authentic travel experiences with verified guides.',
  robots: {
  index: false,
  follow: false,

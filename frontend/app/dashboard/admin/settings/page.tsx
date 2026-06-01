@@ -68,10 +68,10 @@ export default function AdminSettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(user?.pushNotificationsEnabled ?? true)
 
   // Platform
-  const [platformName, setPlatformName] = useState('SafariHub')
-  const [supportEmail, setSupportEmail] = useState('support@safarihub.com')
+  const [platformName, setPlatformName] = useState('Tourongo')
+  const [supportEmail, setSupportEmail] = useState('support@tourongo.com')
   const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [welcomeEmail, setWelcomeEmail] = useState("Welcome to SafariHub! We're excited to have you...")
+  const [welcomeEmail, setWelcomeEmail] = useState("Welcome to Tourongo! We're excited to have you...")
   const [bookingEmail, setBookingEmail] = useState('Your booking has been confirmed...')
   const [payoutEmail, setPayoutEmail] = useState('Your payout has been processed...')
 

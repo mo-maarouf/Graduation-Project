@@ -47,6 +47,7 @@ import {
  resumeTour 
 } from '@/src/lib/api/tours'
 import { TourTemplateResponse, TourTemplateStatus } from '@/src/lib/types/tour.types'
+import { confirmDialog } from '@/src/lib/utils/confirm'
 import GuideToursLoading from './skeleton'
 
 // ============================================================================
@@ -138,7 +139,10 @@ export default function GuideToursPage() {
  case 'resume': await resumeTour(tourId); toast.success('Submitted'); break
  case 'withdraw': await withdrawTourFromReview(tourId); toast.success('Withdrawn'); break
  case 'submit': await submitTourForReview(tourId); toast.success('Submitted'); break
- case 'delete': if (confirm('Delete this template?')) { await deleteTour(tourId); toast.success('Archived'); } break
+ case 'delete': 
+ const confirmed = await confirmDialog('Delete this template?')
+ if (confirmed) { await deleteTour(tourId); toast.success('Archived'); } 
+ break
  }
  fetchTours()
  } catch (err) {

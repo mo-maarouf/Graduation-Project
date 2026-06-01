@@ -407,6 +407,42 @@ public class AuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString());
     }
+
+    @PostMapping("/delete-account")
+    public void deleteAccount(Authentication auth, HttpServletResponse response) {
+        if (auth == null || auth.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        
+        User user = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getRole() == User.Role.Admin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admins cannot be deleted via this endpoint");
+        }
+
+        // Soft delete: clear personal data and set deletedAtUtc
+        user.setDeletedAtUtc(Instant.now());
+        user.setAccountStatus("DELETED");
+        user.setFullName("Deleted User");
+        user.setPhoneE164(null);
+        // Anonymize email so it can be reused by a new account if they register again,
+        // but keep a trace of the original ID for database referential integrity.
+        user.setEmail("deleted_" + user.getId() + "_" + UUID.randomUUID().toString().substring(0, 8) + "@example.com");
+
+        // Strong logout: invalidate all access JWTs
+        int current = (user.getTokenVersion() == null) ? 0 : user.getTokenVersion();
+        user.setTokenVersion(current + 1);
+        
+        userRepository.save(user);
+
+        // Revoke all refresh tokens
+        refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
+
+        // Clear refresh cookie
+        response.addHeader(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString());
+    }
+
     @PostMapping("/password/forgot")
     public Object forgotPassword(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest httpRequest) {
 

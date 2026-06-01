@@ -26,8 +26,8 @@ import ResetPasswordForm from '@/src/components/auth/ResetPasswordForm'
 import ResetPasswordLoading from './loading'
 
 export const metadata: Metadata = {
- title: 'Reset Password | SafariHub',
- description: 'Create a new password for your SafariHub account.',
+ title: 'Reset Password | Tourongo',
+ description: 'Create a new password for your Tourongo account.',
  robots: {
  index: false,
  follow: false,
@@ -66,7 +66,7 @@ export default async function ResetPasswordPage({ searchParams }: ResetPasswordP
  className="inline-flex items-center gap-1.5 text-sm text-theme-secondary hover:text-primary-light dark:text-primary-dark dark:hover:text-primary-dark transition-colors group"
  >
  <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
- <span>Return to SafariHub</span>
+ <span>Return to Tourongo</span>
  </Link>
  </div>
 

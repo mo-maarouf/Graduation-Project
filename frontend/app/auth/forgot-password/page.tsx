@@ -21,8 +21,8 @@ import ForgotPasswordForm from '@/src/components/auth/ForgotPasswordForm'
 import ForgotPasswordLoading from './loading'
 
 export const metadata: Metadata = {
- title: 'Forgot Password | SafariHub',
- description: 'Reset your SafariHub account password.',
+ title: 'Forgot Password | Tourongo',
+ description: 'Reset your Tourongo account password.',
  robots: {
  index: false, // Don't index auth pages
  follow: false,

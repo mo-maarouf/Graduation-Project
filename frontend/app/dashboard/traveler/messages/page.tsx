@@ -1118,7 +1118,7 @@ function TravelerMessagingContent() {
  } catch (error: any) { 
  console.error('Failed to send:', error)
  const errorMsg = error.response?.data?.message || error.message || 'Unknown error'
- alert(`Failed to send message: ${errorMsg}. Please try refreshing or check your internet connection.`)
+ toast.error(`Failed to send message: ${errorMsg}. Please try refreshing or check your internet connection.`)
  } finally {
  setIsSending(false)
  }

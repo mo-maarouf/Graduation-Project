@@ -232,7 +232,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
  {/* Print Footer */}
  <p className="mt-8 text-center text-xs text-theme-muted font-medium print:hidden">
  Need help? Contact support via the help section in your dashboard.
- <br />© 2026 SafariHub Travel & Tourism.
+ <br />© 2026 Tourongo Travel & Tourism.
  </p>
  </div>
  

@@ -308,4 +308,13 @@ export const guideVerificationSubmit = async (data: GuideVerificationSubmitReque
 export const guideGetVerificationStatus = async (): Promise<GuideVerificationStatusResponse> => {
  const response = await apiClient.get('/api/guide/verification/status');
  return response.data;
-};
+};
+
+/**
+ * Delete the user's account (traveler or guide)
+ * Permanently removes user account and all associated data
+ * User will be logged out after successful deletion
+ */
+export const deleteAccount = async (): Promise<void> => {
+ await apiClient.post('/api/auth/delete-account', {});
+};

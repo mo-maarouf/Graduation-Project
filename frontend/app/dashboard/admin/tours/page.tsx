@@ -41,6 +41,7 @@ import {
  Filter
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import { 
  getAdminPendingTours, 
@@ -107,6 +108,7 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
  const [showRejectForm, setShowRejectForm] = useState(false)
  const [loading, setLoading] = useState(false)
  const [activeMediaIndex, setActiveMediaIndex] = useState(0)
+ const [showApproveConfirm, setShowApproveConfirm] = useState(false)
 
  const languages = safeJsonParse(tour.languages, [])
  const itinerary = safeJsonParse(tour.itinerary, [])
@@ -141,7 +143,11 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
  const currentMedia = uniqueMedia.length > 0 ? uniqueMedia[activeMediaIndex] : null
 
  const handleApprove = async () => {
-  if (!confirm(`Are you sure you want to PUBLISH "${tour.title}"?`)) return
+  setShowApproveConfirm(true)
+ }
+
+ const handleConfirmApprove = async () => {
+  setShowApproveConfirm(false)
   setLoading(true)
   try {
    await adminApproveTour(tour.id)
@@ -176,7 +182,17 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
  }
 
  return (
-  <motion.div 
+  <>
+   <ConfirmationDialog
+    isOpen={showApproveConfirm}
+    title="Publish Tour"
+    message={`Are you sure you want to PUBLISH "${tour.title}"?`}
+    confirmText="Publish"
+    cancelText="Cancel"
+    onConfirm={handleConfirmApprove}
+    onCancel={() => setShowApproveConfirm(false)}
+   />
+   <motion.div 
    initial={{ opacity: 0 }}
    animate={{ opacity: 1 }}
    className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
@@ -512,6 +528,7 @@ const ReviewModal = ({ tour, onClose, onAction }: ReviewModalProps) => {
 
    </motion.div>
   </motion.div>
+  </>
  )
 }
 

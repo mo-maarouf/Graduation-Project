@@ -111,7 +111,7 @@ function OAuthCallbackContent() {
     try {
       await authAcceptTerms()
       sessionStorage.removeItem('oauth_new')
-      toast.success('Welcome to SafariHub! 🎉', { duration: 4000 })
+      toast.success('Welcome to Tourongo! 🎉', { duration: 4000 })
       if (user) redirectByRole(user.role)
     } catch {
       toast.error('Failed to save agreement. Please try again.')
@@ -216,7 +216,7 @@ function OAuthCallbackContent() {
             disabled={!canSubmit || isSubmitting}
             className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
           >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue to SafariHub →'}
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue to Tourongo →'}
           </button>
 
           <p className="text-center text-xs text-theme-muted">

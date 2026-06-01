@@ -42,22 +42,22 @@ export async function generateMetadata(
 
   if (!tour) {
     return {
-      title: 'Tour | SafariHub',
+      title: 'Tour | Tourongo',
       description: 'Discover amazing guided tours.',
     }
   }
 
   const mainImage = tour.media?.[0]?.url || '/images/defaults/tour-hero.jpg'
-  const tourUrl = `https://safarihub.com/tours/${id}`
+  const tourUrl = `https://tourongo.com/tours/${id}`
 
   return {
-    title: `${tour.title || 'Tour'} | SafariHub`,
+    title: `${tour.title || 'Tour'} | Tourongo`,
     description: tour.description?.substring(0, 160) || '',
     openGraph: {
       title: tour.title,
       description: tour.description?.substring(0, 160) || '',
       url: tourUrl,
-      siteName: 'SafariHub',
+      siteName: 'Tourongo',
       images: [{ url: mainImage, width: 1200, height: 630, alt: tour.title || 'Tour Image' }],
       locale: 'en_US',
       type: 'website',

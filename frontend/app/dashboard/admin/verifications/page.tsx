@@ -38,6 +38,7 @@ import {
 } from '@/src/lib/api/admin'
 import { useBadgeReset } from '@/src/lib/hooks/useBadgeReset'
 import { toast } from 'react-hot-toast'
+import ConfirmationDialog from '@/src/components/ui/ConfirmationDialog'
 import AdminVerificationsSkeleton from './skeleton'
 
 // ============================================================================
@@ -80,6 +81,8 @@ export default function AdminVerificationQueuePage() {
  const [showRejectModal, setShowRejectModal] = React.useState(false)
  const [rejectReason, setRejectReason] = React.useState('')
  const [isProcessing, setIsProcessing] = React.useState(false)
+ const [showApproveConfirm, setShowApproveConfirm] = React.useState(false)
+ const [approveVerificationId, setApproveVerificationId] = React.useState<number | null>(null)
 
  useBadgeReset('admin-verifications')
 
@@ -106,11 +109,17 @@ export default function AdminVerificationQueuePage() {
   fetchData()
  }, [activeTab])
 
- const handleApprove = async (id: number) => {
-  if (!window.confirm('Are you sure you want to VALIDATE this guide identity?')) return
+ const handleApprove = (id: number) => {
+  setApproveVerificationId(id)
+  setShowApproveConfirm(true)
+ }
+
+ const handleConfirmApprove = async () => {
+  if (approveVerificationId === null) return
+  setShowApproveConfirm(false)
   try {
    setIsProcessing(true)
-   await adminApproveVerification(id)
+   await adminApproveVerification(approveVerificationId)
    toast.success('Identity verified and guide activated')
    window.dispatchEvent(new CustomEvent('badge-refresh'))
    setSelectedVerification(null)
@@ -119,6 +128,7 @@ export default function AdminVerificationQueuePage() {
    toast.error('Identity validation failed')
   } finally {
    setIsProcessing(false)
+   setApproveVerificationId(null)
   }
  }
 
@@ -162,7 +172,20 @@ export default function AdminVerificationQueuePage() {
  }
 
  return (
-  <div className="space-y-8 pb-20">
+  <>
+   <ConfirmationDialog
+    isOpen={showApproveConfirm}
+    title="Validate Identity"
+    message="Are you sure you want to VALIDATE this guide identity? This will activate the guide on the platform."
+    confirmText="Validate"
+    cancelText="Cancel"
+    onConfirm={handleConfirmApprove}
+    onCancel={() => {
+     setShowApproveConfirm(false)
+     setApproveVerificationId(null)
+    }}
+   />
+   <div className="space-y-8 pb-20">
    {/* Header Section */}
    <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
     <div className="space-y-2">
@@ -388,5 +411,6 @@ export default function AdminVerificationQueuePage() {
     </div>
    )}
   </div>
+  </>
  )
 }

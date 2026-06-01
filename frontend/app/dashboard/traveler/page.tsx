@@ -472,7 +472,7 @@ export default function TravelerDashboardPage() {
   )}
   <div className="flex items-start gap-4">
   <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-light flex-shrink-0" />
-  <p className="text-xs sm:text-sm text-theme-secondary font-medium leading-relaxed">Welcome to SafariHub! Your journey to authentic local experiences begins here.</p>
+  <p className="text-xs sm:text-sm text-theme-secondary font-medium leading-relaxed">Welcome to Tourongo! Your journey to authentic local experiences begins here.</p>
   </div>
   </div>
   </GlassCard>

@@ -20,6 +20,7 @@ import MobileBottomNav from '@/src/components/layout/MobileBottomNav'
 import { AuthProvider } from '@/src/lib/contexts/AuthContext'
 import { WishlistProvider } from '@/src/lib/contexts/WishlistContext'
 import { Suspense } from 'react'
+import GlobalConfirmDialog from '@/src/components/ui/GlobalConfirmDialog'
 
 const inter = Inter({
  subsets: ['latin'],
@@ -28,7 +29,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
-  title: 'SafariHub | Travel Marketplace',
+  title: 'Tourongo | Travel Marketplace',
   description: 'Connect with verified local guides for authentic experiences worldwide',
   keywords: ['travel', 'guides', 'tours', 'global', 'worldwide', 'halal', 'adventure'],
 }
@@ -79,6 +80,7 @@ export default function RootLayout({
  <Suspense fallback={null}>
   <MobileBottomNav />
  </Suspense>
+ <GlobalConfirmDialog />
  </FilterProvider>
  </WishlistProvider>
  </AuthProvider>

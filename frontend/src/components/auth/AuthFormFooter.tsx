@@ -209,11 +209,11 @@ export default function AuthFormFooter({
  '@type': 'WebPage',
  'name': type === 'signup' ? 'Sign Up' : 'Log In',
  'description': type === 'signup'
- ? 'Create your SafariHub account'
- : 'Log in to your SafariHub account',
+ ? 'Create your Tourongo account'
+ : 'Log in to your Tourongo account',
  'publisher': {
  '@type': 'Organization',
- 'name': 'SafariHub'
+ 'name': 'Tourongo'
  }
  })
  }}

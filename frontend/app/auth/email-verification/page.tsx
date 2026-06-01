@@ -20,8 +20,8 @@ import EmailVerificationForm from '@/src/components/auth/EmailVerificationForm';
 import EmailVerificationLoading from './loading';
 
 export const metadata: Metadata = {
- title: 'Verify Email | SafariHub',
- description: 'Verify your email address to activate your SafariHub account.',
+ title: 'Verify Email | Tourongo',
+ description: 'Verify your email address to activate your Tourongo account.',
  robots: {
  index: false, // Don't index auth pages
  follow: false,

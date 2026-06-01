@@ -248,7 +248,7 @@ export default function HowItWorksPage() {
  <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold text-theme-primary leading-[0.95] tracking-tight mb-8">
  How <br />
  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-300">
- SafariHub
+ Tourongo
  </span> Works.
  </h1>
  <motion.p 
@@ -258,7 +258,7 @@ export default function HowItWorksPage() {
  className="text-lg sm:text-xl text-theme-secondary font-medium tracking-wide mb-12 max-w-2xl mx-auto"
  >
  Explore global destinations through our admin-vetted master templates. 
- Whether you're discovering gems or guiding them, SafariHub ensures 100% vetted security and cultural alignment.
+ Whether you're discovering gems or guiding them, Tourongo ensures 100% vetted security and cultural alignment.
  </motion.p>
  </motion.div>
 
@@ -610,7 +610,7 @@ export default function HowItWorksPage() {
  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-500">Discover?</span>
  </h2>
  <p className="text-2xl text-white/80 mb-16 max-w-2xl mx-auto font-medium leading-relaxed">
- Join thousands of travelers and local experts on SafariHub. 
+ Join thousands of travelers and local experts on Tourongo. 
  The most authentic way to explore the globe.
  </p>
  

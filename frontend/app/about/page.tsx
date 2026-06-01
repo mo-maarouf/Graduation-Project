@@ -3,7 +3,7 @@
 // ============================================================================
 // LOCATION: /frontend/src/app/about/page.tsx
 // 
-// PURPOSE: Tell the SafariHub story, mission, and team
+// PURPOSE: Tell the Tourongo story, mission, and team
 // 
 // FEATURES:
 // - Company story and founding narrative
@@ -34,10 +34,10 @@ import {
 import PageLayout from '@/src/components/layout/PageLayout'
 
 export const metadata: Metadata = {
- title: 'About Us | SafariHub',
- description: 'Learn about SafariHub\'s mission to connect travelers with verified local guides for authentic halal-friendly experiences.',
+ title: 'About Us | Tourongo',
+ description: 'Learn about Tourongo\'s mission to connect travelers with verified local guides for authentic halal-friendly experiences.',
  openGraph: {
- title: 'About SafariHub',
+ title: 'About Tourongo',
  description: 'Our story, mission, and team',
  images: ['/images/og/about.jpg'],
  }
@@ -236,7 +236,7 @@ export default function AboutPage() {
  </h1>
  
  <p className="text-lg sm:text-xl text-blue-100 max-w-2xl mx-auto">
- SafariHub was born from a simple idea: travel should be authentic, safe, and respectful of your values.
+ Tourongo was born from a simple idea: travel should be authentic, safe, and respectful of your values.
  </p>
  </div>
  </div>
@@ -250,13 +250,13 @@ export default function AboutPage() {
  Our Story
  </h2>
  <p className="text-theme-secondary mb-4 leading-relaxed">
- SafariHub started in 2023 when our founder Ahmed, a former tour guide, realized that Muslim travelers 
+ Tourongo started in 2023 when our founder Ahmed, a former tour guide, realized that Muslim travelers 
  were struggling to find authentic experiences that respected their values. Tours either lacked prayer 
  spaces, had no halal food options, or simply didn't understand the needs of Muslim travelers.
  </p>
  <p className="text-theme-secondary mb-4 leading-relaxed">
  He gathered a team of passionate travelers and guides from Lebanon and Turkey, and together they built 
- a platform that would change how Muslims explore the world. Today, SafariHub connects thousands of 
+ a platform that would change how Muslims explore the world. Today, Tourongo connects thousands of 
  travelers with verified local guides who understand and respect Islamic values.
  </p>
  <p className="text-theme-secondary leading-relaxed">
@@ -273,7 +273,7 @@ export default function AboutPage() {
  <div className="container-safe mx-auto max-w-7xl">
  <div className="text-center max-w-2xl mx-auto mb-12">
  <h2 className="text-2xl sm:text-3xl font-bold text-theme-primary mb-4">
- SafariHub by the Numbers
+ Tourongo by the Numbers
  </h2>
  <p className="text-theme-secondary ">
  Our community is growing every day.
@@ -358,7 +358,7 @@ export default function AboutPage() {
  Meet the Team
  </h2>
  <p className="text-theme-secondary ">
- The people behind SafariHub.
+ The people behind Tourongo.
  </p>
  </div>
 

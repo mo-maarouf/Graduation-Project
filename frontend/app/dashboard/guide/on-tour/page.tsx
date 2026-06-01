@@ -20,6 +20,7 @@ import GuideOnTourSkeleton from './skeleton'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
+import { confirmDialog } from '@/src/lib/utils/confirm'
 import {
   QrCode,
   Users,
@@ -669,7 +670,8 @@ export default function GuideOnTourPage() {
   }
 
   const handleNoShow = async (bookingId: number) => {
-    if (!confirm('Mark this traveler as a No-Show?')) return
+    const confirmed = await confirmDialog('Mark this traveler as a No-Show?')
+    if (!confirmed) return
 
     setIsProcessing(true)
     try {
