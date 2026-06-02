@@ -1,0 +1,8 @@
+# Don't send these to Docker daemon during build
+target/
+.idea/
+.vscode/
+*.iml
+.mvn/wrapper/maven-wrapper.jar
+*.log
+*.md

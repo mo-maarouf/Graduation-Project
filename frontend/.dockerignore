@@ -1,0 +1,8 @@
+# Don't send these to Docker daemon during build
+node_modules/
+.next/
+.env.local
+.env.tunnel
+*.log
+.vscode/
+.DS_Store

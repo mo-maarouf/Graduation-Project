@@ -1,0 +1,91 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: tourongo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: travel_db
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"          # exposed so you can still connect from pgAdmin/Postman locally
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d travel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot Backend ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tourongo_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy   # waits for postgres to be truly ready
+    environment:
+      # Database — "postgres" is the docker-compose service name, used as hostname
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/travel_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Google OAuth2
+      OAUTH2_ID: ${OAUTH2_ID}
+      OAUTH2_SECRET: ${OAUTH2_SECRET}
+
+      # Frontend URL (for OAuth redirect & email links)
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+
+      # Brevo email
+      BREVO_HOST: ${BREVO_HOST}
+      BREVO_USERNAME: ${BREVO_USERNAME}
+      BREVO_PASSWORD: ${BREVO_PASSWORD}
+      BREVO_MAIL: ${BREVO_MAIL}
+
+      # Stripe
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_replace_me}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_replace_me}
+    ports:
+      - "8081:8081"          # exposed so Postman and local dev still work
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── Next.js Frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked in at build time — must point to where the browser can reach the backend.
+        # In a typical setup this is the public host or the Docker host's IP.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8081}
+      # Tell next.config.ts to enable standalone output
+    environment:
+      DOCKER_BUILD: "true"
+      # Internal server-side URL: Next.js rewrites proxy from here to backend service
+      BACKEND_INTERNAL_URL: http://backend:8081
+      NODE_ENV: production
+    container_name: tourongo_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+    driver: local

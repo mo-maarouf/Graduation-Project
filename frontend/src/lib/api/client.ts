@@ -12,13 +12,15 @@ import axios from 'axios';
  */
 export const getApiUrl = (): string => {
   if (typeof window === 'undefined') {
-    // SSR: Call backend directly via localhost/127.0.0.1
-    return 'http://localhost:8081';
+    // SSR: use the internal backend URL.
+    // In Docker this is http://backend:8081 (set via BACKEND_INTERNAL_URL build arg).
+    // In local dev it falls back to localhost:8081.
+    return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8081';
   }
-  // Browser: Use relative path. 
+  // Browser: Use relative path.
   // Next.js config (rewrites) will proxy /api to the backend.
   // This solves same-WiFi IP issues and CORS.
-  return ''; 
+  return '';
 };
 
 const apiClient = axios.create({

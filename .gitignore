@@ -1,0 +1,10 @@
+# Docker secrets — never commit real values
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+.env.txt
+
+.env.txt

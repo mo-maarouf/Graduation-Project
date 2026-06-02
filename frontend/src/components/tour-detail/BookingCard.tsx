@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // BOOKING CARD - PRICING & AVAILABILITY WIDGET
 // ============================================================================
 // LOCATION: /frontend/src/components/tour-detail/BookingCard.tsx
@@ -420,17 +420,17 @@ export default function BookingCard({
  }
  }
 
- const handleConfirmGroupSizeChange = async () => {
-  if (!pendingGroupUpdate) return
-  setShowGroupSizeWarning(false)
-  try {
-   await onUpdateBooking(activeBookingId, pendingGroupUpdate.occurrenceId, pendingGroupUpdate.peopleCount, true)
-  } catch (error: any) {
-   toast.error(error.response?.data?.message || 'Update failed')
-  } finally {
-   setPendingGroupUpdate(null)
+  const handleConfirmGroupSizeChange = async () => {
+   if (!pendingGroupUpdate || !activeBookingId || !onUpdateBooking) return
+   setShowGroupSizeWarning(false)
+   try {
+    await onUpdateBooking(activeBookingId, pendingGroupUpdate.occurrenceId, pendingGroupUpdate.peopleCount, true)
+   } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Update failed')
+   } finally {
+    setPendingGroupUpdate(null)
+   }
   }
- }
 
  // ========================================
  // RENDER
