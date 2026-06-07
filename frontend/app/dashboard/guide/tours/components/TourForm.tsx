@@ -304,9 +304,9 @@ function SearchableSelect({ value, onChange, options, placeholder ="Search...", 
  Nothing found.
  </div>
  ) : (
- filteredOptions.map((opt) => (
+ filteredOptions.slice(0, 100).map((opt, idx) => (
  <Combobox.Option
- key={opt.value}
+ key={`${opt.value}-${idx}`}
  className={({ active }) =>
  `relative cursor-default select-none py-2 pl-10 pr-4 ${
  active ? 'bg-primary-light text-white' : 'text-theme-primary'

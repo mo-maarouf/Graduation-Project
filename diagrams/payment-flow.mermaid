@@ -1,0 +1,73 @@
+---
+title: SafariHub — Payment & Payout Flow
+---
+
+sequenceDiagram
+    participant T as Traveler
+    participant FE as Frontend
+    participant API as Spring Boot
+    participant DB as PostgreSQL
+    participant STRIPE as Stripe
+    participant WS as WebSocket
+    participant GW as Guide Wallet
+
+    Note over T,GW: Phase 1 — Booking & Payment
+
+    T->>FE: Click "Book Now" + agree waiver
+    FE->>API: POST /api/traveler/bookings
+    API->>DB: SELECT ... FOR UPDATE (occurrence lock, 2000ms timeout)
+    DB-->>API: Lock acquired
+    API->>DB: Check seatsReserved + peopleCount ≤ maxCapacity
+    API->>DB: seatsReserved += peopleCount
+    API->>DB: INSERT booking (PendingPayment, cartExpiresAt=now+15min, qrCode=UUID)
+    API->>DB: COMMIT (lock released)
+    API-->>FE: BookingResponse (bookingId, cartExpiresAtUtc)
+    FE->>FE: Start PaymentCountdownBanner (usePaymentCountdown hook)
+
+    T->>FE: Click "Pay Now"
+    FE->>API: POST /api/payments/create-session (bookingId)
+    API->>STRIPE: Create Checkout Session
+    STRIPE-->>API: {sessionId, checkoutUrl}
+    API-->>FE: {sessionId, checkoutUrl}
+    FE->>STRIPE: Redirect to Stripe Checkout
+
+    alt Payment Success
+        STRIPE->>API: POST /api/payments/webhook (checkout.session.completed)
+        Note over API: stripe-signature header verified
+        API->>DB: UPDATE booking SET status=Confirmed, cartExpiresAt=NULL
+        API->>DB: UPDATE payment SET status=Captured, paidAt=now
+        API->>DB: SET payoutEligibleAt = now + freeze-hours
+        API->>WS: PAYMENT_SUCCESS → /topic/notifications/{travelerId}
+        API->>WS: BOOKING_CREATED → /topic/notifications/{guideId}
+        STRIPE-->>FE: Redirect /bookings/{id}?success=true
+    else Timeout (15 min elapsed, no payment)
+        Note over API,DB: PaymentTimeoutJob polls every 60s
+        API->>DB: UPDATE booking SET status=Expired
+        API->>DB: seatsReserved -= peopleCount
+        API->>DB: Promote next WAITING waitlist entry (if any)
+        API->>WS: BOOKING_EXPIRED → /topic/notifications/{travelerId}
+        API->>WS: BOOKING_CANCELLED → /topic/notifications/{guideId}
+    end
+
+    Note over T,GW: Phase 2 — Tour Execution & Escrow Release
+
+    T->>API: Show QR code (from booking ticket page)
+    API->>FE: QR renders 1h before tour start
+    FE->>FE: html5-qrcode scanner (guide's on-tour page)
+    FE->>API: POST /guide/bookings/checkin-by-qr/{qrToken}
+    API->>DB: UPDATE booking SET status=InProgress, checkedInAt=now
+    API->>WS: Notify traveler: tour started
+
+    FE->>API: POST /guide/bookings/{id}/complete
+    API->>DB: UPDATE booking SET status=Completed, completedAt=now
+    API->>DB: UPDATE payment SET payoutEligibleAt = completedAt + freeze-hours
+    API->>DB: travelerProfile.completedBookingCount++
+    API->>DB: Recalculate loyalty tier (BRONZE→SILVER→GOLD)
+
+    Note over API,GW: PayoutReleaseJob runs hourly
+    API->>DB: Find payments WHERE payoutStatus=Pending AND payoutEligibleAt <= now
+    API->>STRIPE: Transfer (netAmount) to guide.stripeConnectAccountId
+    STRIPE-->>API: Transfer confirmed (stripeTransferId)
+    API->>DB: UPDATE payment SET payoutStatus=Transferred, stripeTransferId=...
+    API->>WS: PAYOUT_PROCESSED → /topic/notifications/{guideId}
+    DB-->>GW: Earnings appear in guide wallet

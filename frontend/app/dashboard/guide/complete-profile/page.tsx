@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -13,16 +13,123 @@ import { getGuideProfile } from '@/src/lib/api/tours'
 import apiClient from '@/src/lib/api/client'
 import toast from 'react-hot-toast'
 import PhoneInput, { COUNTRY_CODES } from '@/src/components/ui/PhoneInput'
+import { Country as CSC_Country, City as CSC_City } from 'country-state-city'
+import { Combobox } from '@headlessui/react'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REUSABLE SEARCHABLE SELECT
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SearchableSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  label?: string;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}
+
+function SearchableSelect({ value, onChange, options, placeholder = "Search...", label, disabled, icon }: SearchableSelectProps) {
+  const [query, setQuery] = useState('')
+
+  const filteredOptions = query === ''
+    ? options
+    : options.filter((opt) =>
+        opt.label.toLowerCase().includes(query.toLowerCase())
+      )
+
+  const selectedOption = options.find(opt => opt.value === value) || null
+
+  return (
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-theme-secondary mb-1">
+          {label}
+        </label>
+      )}
+      <Combobox value={value} onChange={(val: string | null) => val !== null && onChange(val)} disabled={disabled}>
+        {({ open }) => (
+          <div className="relative">
+            {icon && <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">{icon}</div>}
+            <Combobox.Button as="div" className="relative w-full cursor-pointer overflow-hidden rounded-lg surface-section border border-theme-strong text-left focus-within:border-primary-light dark:border-primary-dark focus-within:ring-2 focus-within:ring-primary-light dark:ring-primary-dark/20 transition-all sm:text-sm shadow-sm hover:surface-card dark:hover:surface-card">
+              <Combobox.Input
+                className={`w-full border-none py-2.5 pr-10 text-sm leading-5 text-theme-primary bg-transparent focus:ring-0 outline-none cursor-pointer ${icon ? 'pl-9' : 'pl-3'}`}
+                displayValue={() => selectedOption?.label || ''}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={placeholder}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <ChevronDown
+                  className={`h-5 w-5 text-theme-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+              </div>
+            </Combobox.Button>
+            <Combobox.Options className="absolute z-[100] mt-1 pr-2 max-h-60 w-full overflow-auto rounded-md surface-card py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm border border-theme">
+              {filteredOptions.length === 0 && query !== '' ? (
+                <div className="relative cursor-default select-none py-2 px-4 text-theme-secondary">
+                  Nothing found.
+                </div>
+              ) : (
+                filteredOptions.slice(0, 100).map((opt, idx) => (
+                  <Combobox.Option
+                    key={`${opt.value}-${idx}`}
+                    className={({ active }) =>
+                      `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                        active ? 'bg-primary-light text-white' : 'text-theme-primary'
+                      }`
+                    }
+                    value={opt.value}
+                  >
+                    {({ selected, active }) => (
+                      <>
+                        <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                          {opt.label}
+                        </span>
+                        {selected ? (
+                          <span className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-primary-light dark:text-primary-dark'}`}>
+                            <CheckCircle className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </Combobox.Option>
+                ))
+              )}
+            </Combobox.Options>
+          </div>
+        )}
+      </Combobox>
+    </div>
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LANGUAGES = [
- 'Arabic', 'English', 'French', 'Turkish', 'Spanish', 'German',
- 'Italian', 'Russian', 'Chinese', 'Japanese', 'Korean', 'Hindi',
- 'Persian', 'Hebrew', 'Greek', 'Dutch', 'Portuguese',
+"Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani", 
+"Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan", 
+"Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech", 
+"Danish","Dutch","English","Esperanto","Estonian","Finnish", 
+"French","Galician","Georgian","German","Greek","Gujarati", 
+"Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic", 
+"Igbo","Indonesian","Irish","Italian","Japanese","Javanese", 
+"Kannada","Kazakh","Khmer","Kinyarwanda","Korean","Kurdish", 
+"Kyrgyz","Lao","Latin","Latvian","Lithuanian","Luxembourgish", 
+"Macedonian","Malagasy","Malay","Malayalam","Maltese","Maori", 
+"Marathi","Mongolian","Myanmar (Burmese)","Nepali","Norwegian", 
+"Nyanja (Chichewa)","Odia (Oriya)","Pashto","Persian","Polish", 
+"Portuguese","Punjabi","Romanian","Russian","Samoan","Scots Gaelic", 
+"Serbian","Sesotho","Shona","Sindhi","Sinhala (Sinhalese)","Slovak", 
+"Slovenian","Somali","Spanish","Sundanese","Swahili","Swedish", 
+"Tagalog (Filipino)","Tajik","Tamil","Tatar","Telugu","Thai", 
+"Turkish","Turkmen","Ukrainian","Urdu","Uyghur","Uzbek", 
+"Vietnamese","Welsh","Xhosa","Yiddish","Yoruba","Zulu"
 ].sort()
+
 
 const PROFICIENCY_OPTIONS = [
  { value: 'Beginner', label: 'Beginner' },
@@ -74,6 +181,18 @@ export default function GuideCompleteProfilePage() {
  const [errors, setErrors] = useState<Record<string, string>>({})
  const [isSubmitting, setIsSubmitting] = useState(false)
  const [isFetchingData, setIsFetchingData] = useState(true)
+
+ const countryOptions = useMemo(() => 
+   CSC_Country.getAllCountries().map(c => ({ label: `${c.flag} ${c.name}`, value: c.name })),
+ [])
+
+ const cityOptions = useMemo(() => {
+   if (!country) return []
+   const countryObj = CSC_Country.getAllCountries().find(c => c.name === country)
+   if (!countryObj) return []
+   const cities = CSC_City.getCitiesOfCountry(countryObj.isoCode)
+   return (cities || []).map(c => ({ label: c.name, value: c.name }))
+ }, [country])
 
  // Role guard
  useEffect(() => {
@@ -235,23 +354,31 @@ export default function GuideCompleteProfilePage() {
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  <div className="space-y-1">
  <label className="text-sm font-medium text-theme-secondary">Country <span className="text-danger-red">*</span></label>
- <div className="relative">
- <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-theme-muted" />
- <select value={country} onChange={e => { setCountry(e.target.value); setErrors(p => ({ ...p, country: '' })) }}
- className={`${inputClass('country')} pl-9 pr-8 appearance-none`}>
- <option value="">Select Country</option>
- {[...COUNTRY_CODES].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
- <option key={c.code + c.name} value={c.name}>{c.flag} {c.name}</option>
- ))}
- </select>
- <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-theme-muted pointer-events-none" />
- </div>
+ <SearchableSelect
+   options={countryOptions}
+   value={country}
+   onChange={(val) => {
+     setCountry(val);
+     setCity('');
+     setErrors(p => ({ ...p, country: '', city: '' }));
+   }}
+   placeholder="Select Country"
+   icon={<Globe className="w-4 h-4 text-theme-muted" />}
+ />
  {errors.country && <p className="text-xs text-danger-red">{errors.country}</p>}
  </div>
  <div className="space-y-1">
  <label className="text-sm font-medium text-theme-secondary">City <span className="text-danger-red">*</span></label>
- <input type="text" value={city} onChange={e => { setCity(e.target.value); setErrors(p => ({ ...p, city: '' })) }}
- placeholder="e.g., Beirut" className={inputClass('city')} />
+ <SearchableSelect
+   options={cityOptions}
+   value={city}
+   onChange={(val) => {
+     setCity(val);
+     setErrors(p => ({ ...p, city: '' }));
+   }}
+   placeholder={country ? 'Select City' : 'Select country first'}
+   disabled={!country}
+ />
  {errors.city && <p className="text-xs text-danger-red">{errors.city}</p>}
  </div>
  </div>

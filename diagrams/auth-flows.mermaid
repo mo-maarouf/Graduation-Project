@@ -1,0 +1,80 @@
+---
+title: SafariHub — All Authentication Flows
+---
+
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant API as Spring Boot :8081
+    participant DB as PostgreSQL
+    participant GOOGLE as Google OAuth2
+    participant EMAIL as Brevo SMTP
+
+    rect rgb(200, 240, 210)
+        Note over U,EMAIL: Flow 1 — Email Registration (3-step signup)
+        U->>FE: Step 1: Choose role (Traveler / Guide)
+        U->>FE: Step 2: Fill name, email, password
+        U->>FE: Step 3: Accept Terms + Privacy
+        FE->>API: POST /api/auth/register {role, name, email, password, agreedTerms, agreedPrivacy}
+        API->>DB: INSERT user (emailVerified=false, hasPassword=true, profileCompleted=false)
+        API->>EMAIL: Send 6-digit verification code (30min TTL)
+        API-->>FE: {accessToken, user}
+        FE->>FE: Store accessToken, set HttpOnly refresh cookie
+        FE->>FE: Show onboarding banner (verify email + complete profile)
+    end
+
+    rect rgb(200, 215, 255)
+        Note over U,GOOGLE: Flow 2 — Google OAuth2 Login
+        U->>FE: Click "Continue with Google"
+        FE->>API: GET /oauth2/authorize/google
+        API->>GOOGLE: Redirect to Google consent screen
+        GOOGLE-->>API: GET /login/oauth2/code/google?code=...
+        API->>GOOGLE: Exchange code → {email, name, picture}
+        API->>DB: Upsert user (hasPassword=false for new OAuth users)
+        API->>FE: Redirect /auth/oauth-callback?token=...
+        FE->>FE: Extract token, store in AuthContext
+        Note over FE: OAuth users see "Set Password" option in settings
+    end
+
+    rect rgb(255, 230, 200)
+        Note over U,API: Flow 3 — Token Refresh (auto-silent)
+        FE->>API: Any request → 401 Unauthorized
+        FE->>FE: Queue all concurrent 401s
+        FE->>API: POST /api/auth/refresh (HttpOnly cookie auto-sent)
+        API->>DB: Validate + rotate refresh token
+        API-->>FE: New accessToken + new refresh cookie
+        FE->>FE: Retry ALL queued requests with new token
+    end
+
+    rect rgb(240, 200, 255)
+        Note over U,EMAIL: Flow 4 — Password Reset
+        U->>FE: Click "Forgot Password"
+        FE->>API: POST /api/auth/password/forgot {email}
+        API->>EMAIL: 6-digit code, 15min TTL
+        U->>FE: Enter code + new password
+        FE->>API: POST /api/auth/password/reset {token, newPassword}
+        API->>DB: Update password hash, invalidate token
+        API-->>FE: Success
+    end
+
+    rect rgb(255, 245, 200)
+        Note over U,EMAIL: Flow 5 — OAuth User Sets Password
+        U->>FE: Settings → "Set Password" → request code
+        FE->>API: POST /api/auth/password/setup/request
+        API->>EMAIL: 6-digit code, 15min TTL
+        U->>FE: Enter code + desired password
+        FE->>API: POST /api/auth/password/setup/confirm {code, newPassword}
+        API->>DB: Set password_hash, hasPassword=true
+        API-->>FE: Success (user can now login with email+password)
+    end
+
+    rect rgb(200, 255, 240)
+        Note over U,EMAIL: Flow 6 — Email Verification
+        FE->>API: POST /api/auth/email/verify/request
+        API->>EMAIL: 6-digit code, 30min TTL
+        U->>FE: Enter 6-digit code
+        FE->>API: POST /api/auth/email/verify/confirm-code {code}
+        API->>DB: SET emailVerified=true
+        API->>DB: INSERT notification (EMAIL_VERIFIED)
+        API-->>FE: Success, onboarding step cleared
+    end

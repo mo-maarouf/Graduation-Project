@@ -1,0 +1,44 @@
+---
+title: SafariHub — Booking State Machine (Complete)
+---
+
+stateDiagram-v2
+    [*] --> PendingPayment : Instant Book\ncreateBooking()\nSeats reserved\ncartExpiresAt = now+15min
+
+    [*] --> PendingGuide : Request to Book\ncreateBooking()\nSeats reserved\nGuide has 24h to respond
+
+    PendingPayment --> Confirmed : Payment success\n(Stripe webhook)\ncartExpiresAt cleared
+    PendingPayment --> Expired : PaymentTimeoutJob\n(every 60s, after 15min)\nSeats released\nWaitlist promoted
+
+    PendingGuide --> Confirmed : Guide accepts\n(PUT /guide/bookings/{id}/confirm)
+    PendingGuide --> Cancelled : Guide rejects\nOR BookingStatusCleanupJob\n(24h timeout)
+
+    Confirmed --> InProgress : Guide QR scan\n(POST /guide/bookings/checkin-by-qr/{token})\nStarts 48h escrow window
+    Confirmed --> Cancelled : Traveler cancels\n>48h = 100% refund\n24-48h = 50% refund\n<24h = 0% refund
+
+    InProgress --> Completed : Guide marks complete\n(POST /guide/bookings/{id}/complete)\nReview window opens\nPayoutEligibleAt = now+48h
+    InProgress --> Cancelled : Guide marks no-show\nSeats released\nWaitlist promoted
+
+    Completed --> [*] : ReviewReminderJob\nsends email 24h later\n7-day dispute window open
+
+    note right of PendingPayment
+        PaymentCountdownBanner UI:
+        >5min = amber (normal)
+        ≤5min = orange (warning)
+        ≤2min = red bouncing (critical)
+        0min = expired UI
+    end note
+
+    note right of Expired
+        Released: seatsReserved -= peopleCount
+        Promoted: next waitlist entry
+        Notified: BOOKING_EXPIRED (traveler)
+        Notified: BOOKING_CANCELLED (guide)
+    end note
+
+    note right of Completed
+        Payout: held in escrow
+        Released: 48h after completedAtUtc
+        Via: PayoutReleaseJob (hourly)
+        Amount: finalPrice - platformFee
+    end note

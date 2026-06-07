@@ -1,0 +1,40 @@
+---
+title: SafariHub — Tour Template Lifecycle
+---
+
+stateDiagram-v2
+    [*] --> DRAFT : Guide creates tour\n(Save Draft)
+
+    DRAFT --> PENDING_REVIEW : Guide submits\n(POST /guide/tours/{id}/submit)\nAdmin notified
+
+    PENDING_REVIEW --> PUBLISHED : Admin approves\n(POST /admin/tours/{id}/approve)\nOccurrences become bookable
+
+    PENDING_REVIEW --> DRAFT : Admin rejects\n(with rejection reason)\nGuide receives notification
+
+    PENDING_REVIEW --> DRAFT : Guide withdraws\n(POST /guide/tours/{id}/withdraw)
+
+    PUBLISHED --> PAUSED : Guide pauses\n(POST /guide/tours/{id}/pause)\nNew bookings blocked\nExisting bookings unaffected
+
+    PAUSED --> PUBLISHED : Guide resumes\n(POST /guide/tours/{id}/resume)\nRe-enters marketplace
+
+    PUBLISHED --> ARCHIVED : Guide archives\n(POST /guide/tours/{id}/archive)\nPermanently hidden\nNon-reversible
+
+    PAUSED --> ARCHIVED : Guide archives from paused state
+
+    note right of PENDING_REVIEW
+        Admin review desk shows:
+        - Full description
+        - Media gallery
+        - Itinerary phases
+        - Pricing + capacity
+        - Halal flags
+        - Map + meeting point
+        Only top 15% published
+    end note
+
+    note right of PUBLISHED
+        Guide portfolio shows this tour.
+        Occurrences can be scheduled.
+        Travelers can book.
+        Tour appears in search.
+    end note

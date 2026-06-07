@@ -1,0 +1,46 @@
+---
+title: SafariHub — Pricing Engine (PricingService)
+---
+
+flowchart TD
+    A["Input: basePrice, peopleCount\ntourTemplate, occurrence date\ntravelerLoyaltyTier"] --> B
+
+    B["Step 1 — Subtotal\nsubtotal = basePrice × peopleCount"]
+    B --> C
+
+    C{"hasGroupDiscount AND\npeopleCount >= threshold?"}
+    C -->|Yes| D["Apply Group Discount\ngroupDiscountAmt = subtotal × groupDiscountPct\nsubtotal -= groupDiscountAmt"]
+    C -->|No| E
+    D --> E
+
+    E{"LoyaltyTier?"}
+    E -->|BRONZE| F["0% discount\n(from LoyaltyProperties)"]
+    E -->|SILVER| G["5% discount\n(configurable)"]
+    E -->|GOLD| H["10% discount\n(configurable)"]
+    F --> I
+    G --> I
+    H --> I
+
+    I["Apply Loyalty Discount\nsubtotal -= subtotal × loyaltyPct"]
+    I --> J
+
+    J{"dynamicPricingEnabled?\nCheck occurrence date"}
+    J -->|"Lebanese public holiday\n(Jan1,Jan6,Feb9,Mar25,May1,\nMay25,Aug15,Nov1,Nov22,Dec25)"| K["Apply Holiday Multiplier\n(takes priority over weekend)"]
+    J -->|"Weekend (Sat/Sun)\nNOT a holiday"| L["Apply Weekend Multiplier"]
+    J -->|"Regular day"| M["Multiplier = 1.0x\n(no change)"]
+    K --> N
+    L --> N
+    M --> N
+
+    N["Cap multiplier: max(0.0, min(5.0, multiplier))\nworkingPrice = subtotal × multiplier\nworkingPrice = max(0, workingPrice)"]
+    N --> O
+
+    O["Step 4 — Platform Fee\neffectiveRate = platformFeeRate × guide.currentFeeMultiplier\nplatformFee = workingPrice × effectiveRate\nnetToGuide = workingPrice − platformFee"]
+    O --> P
+
+    P["Output:\nfinalPrice (traveler pays)\nplatformFeeAmount (stays in Stripe platform account)\nnetGuideAmount (transferred to guide on payout)\nAll price snapshots saved to booking row"]
+
+    style A fill:#1e40af,color:#fff
+    style P fill:#15803d,color:#fff
+    style K fill:#d97706,color:#fff
+    style L fill:#d97706,color:#fff

@@ -1,0 +1,35 @@
+---
+title: SafariHub — Notification Pipeline (Real-Time + Email)
+---
+
+sequenceDiagram
+    participant SVC as Any Service\n(BookingService, ReviewService...)
+    participant NS as NotificationService
+    participant DB as PostgreSQL\n(notifications table)
+    participant WS as Spring STOMP Broker
+    participant FE as Frontend React
+    participant EMAIL as Brevo SMTP
+
+    Note over SVC,EMAIL: Standard notification (in-app + email)
+
+    SVC->>NS: createNotification(userId, type, title, message, refId, refType)
+    NS->>DB: INSERT notification {userId, type, title, message, isRead=false}
+    NS->>WS: SimpMessagingTemplate.convertAndSend("/topic/notifications/{userId}", payload)
+    NS->>EMAIL: emailService.send() — if type is email-eligible
+
+    WS-->>FE: STOMP frame arrives at useNotificationSocket hook
+    FE->>FE: Prepend to notification list (React state)
+    FE->>FE: Increment unread badge count (NotificationBell)
+    FE->>FE: usePushNotifications → browser Notification API popup (if tab backgrounded + permission granted)
+
+    Note over SVC,EMAIL: In-app-only variant (no email — avoids duplicate)
+    SVC->>NS: createNotificationInAppOnly(userId, type, title, message)
+    NS->>DB: INSERT notification
+    NS->>WS: SimpMessagingTemplate.convertAndSend(...)
+    Note over NS: No email call — used by ReviewReminderService\n(already sends richer HTML email separately)
+
+    Note over SVC,EMAIL: 30+ Notification Types
+    Note over FE: NotificationBell: click → GET /api/notifications (paginated)
+    Note over FE: Mark one read: PUT /api/notifications/{id}/read
+    Note over FE: Mark all read: PUT /api/notifications/read-all
+    Note over FE: Unread count badge: GET /api/notifications/unread-count

@@ -1,0 +1,78 @@
+---
+title: SafariHub — Full System Architecture
+---
+
+graph TB
+    subgraph FE["🖥️ Frontend — Next.js 16 · React 19 · TypeScript · Tailwind v4"]
+        direction LR
+        subgraph PAGES["70+ App Router Pages"]
+            PG["Guest: /, /tours, /tours/id\n/guides/id, /how-it-works"]
+            PT["Traveler: bookings, payments\nwishlist, disputes, messages, profile"]
+            PGD["Guide: tours, bookings, on-tour\nwallet, verification, profile"]
+            PA["Admin: users, verifications, tours\npayouts, disputes, support, audit"]
+        end
+        subgraph HOOKS["Custom Hooks"]
+            H1["useChatSocket"]
+            H2["useNotificationSocket"]
+            H3["usePaymentCountdown\n(urgency: normal/warning/critical)"]
+            H4["usePushNotifications"]
+        end
+        APIMODS["17 Typed Axios API Modules\nauth · tours · traveler · guide-payouts\nadmin · chat · notifications · payment\ndisputes · wishlist · discovery · ..."]
+        CTX["Contexts: AuthContext · FilterContext\nWishlistContext · SignupContext"]
+    end
+
+    subgraph BE["Backend — Spring Boot 3 · Java 17 · Port 8081"]
+        direction TB
+        SEC["Security: JwtAuthFilter · HttpOnly Cookie\nOAuth2 Handlers · RateLimiterService"]
+
+        subgraph CTRL["25+ Controllers"]
+            CA["AuthController /api/auth/**"]
+            CB["BookingController + WaitlistController"]
+            CT["Tour Controllers x4\n(Public, Guide, Admin, Media)"]
+            CP["Payment Controllers x4\n(Stripe, Mock, Traveler, GuideEarnings)"]
+            CADM["Admin Controllers x6\n(Users, Verifications, Tours,\nPayouts, Support, Audit, Fees)"]
+            COTHER["NotificationController · ChatController\nReviewController · WishlistController\nGuideProfileController · PublicDiscoveryController"]
+        end
+
+        subgraph SVC["Services"]
+            BS["BookingService (pessimistic lock)\nPricingService (full pipeline)\nReviewReminderService"]
+            TS["TourTemplateService\nTourOccurrenceService\nPublicTourService\nTourMediaService · WishlistService"]
+            SS["StripePaymentService\nAdminPayoutService\nGuideEarningsService"]
+            NS["NotificationService (WS + Email + DB)\nEmailService (Brevo)\nTimeService (UTC clock)"]
+            SOTHER["ReviewService · ChatService\nAdminAuditService\nCustomUserDetailsService"]
+        end
+
+        subgraph JOBS["5 Scheduled Jobs"]
+            J1["PaymentTimeoutJob (60s)\nExpires PendingPayment, releases seats"]
+            J2["ReviewReminderJob (1h)\n24h post-tour email + notification"]
+            J3["BookingStatusCleanupJob (1h)\nAuto-completes stale InProgress"]
+            J4["SuspensionCleanupJob (60s)\nLifts expired user suspensions"]
+            J5["PayoutReleaseJob (hourly cron)\nReleases 48h escrow to guides"]
+        end
+
+        WS["Spring WebSocket STOMP — /ws-chat\n/topic/chat/{conversationId}\n/topic/notifications/{userId}"]
+    end
+
+    subgraph DB["PostgreSQL 15+ · Flyway V1–V66"]
+        T1["users · traveler_profiles · guide_profiles\nrefresh_tokens · email_verification_tokens"]
+        T2["tour_templates · tour_occurrences\ntour_media · tour_map_points · pricing_rules · wishlist_items"]
+        T3["bookings (@Version) · waitlist_entries\npayments · traveler_payment_methods"]
+        T4["conversations · messages · notifications\ndisputes · support_tickets · support_messages"]
+        T5["reviews · review_helpful_votes\nadmin_audit_events · guide_languages"]
+    end
+
+    subgraph EXT["External Services"]
+        STRIPE["Stripe — Checkout · Webhooks\nConnect Transfers (payouts)"]
+        BREVO["Brevo SMTP — All transactional email"]
+        GOOGLE["Google OAuth2 — Social login"]
+    end
+
+    FE -->|"HTTP /api/* → :8081"| BE
+    FE <-->|"WebSocket STOMP/SockJS"| WS
+    BE --> DB
+    JOBS --> SVC
+    NS -->|"SimpMessagingTemplate"| WS
+    SS --> STRIPE
+    STRIPE -->|"Webhook POST"| CP
+    NS --> BREVO
+    BE <--> GOOGLE

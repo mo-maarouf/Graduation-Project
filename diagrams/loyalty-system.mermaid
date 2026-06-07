@@ -1,0 +1,31 @@
+---
+title: SafariHub — Loyalty Tier System
+---
+
+flowchart LR
+    subgraph B["🥉 BRONZE\n(default)"]
+        B1["0% discount\n0 trips minimum\n15% platform fee\non earnings"]
+    end
+
+    subgraph S["🥈 SILVER"]
+        S1["5% booking discount\n5+ completed trips\n12% platform fee\non earnings"]
+    end
+
+    subgraph G["🥇 GOLD"]
+        G1["10% booking discount\n10+ completed trips\n10% platform fee\non earnings"]
+    end
+
+    subgraph P["💎 PLATINUM\n(admin-assigned)"]
+        P1["Custom discount\nAdmin-controlled\n8% platform fee\non earnings"]
+    end
+
+    B -->|"5th completed trip\nPricingService.recalculateLoyaltyTier()"| S
+    S -->|"10th completed trip"| G
+    G -->|"Admin action"| P
+
+    NOTE["Tier upgrade triggered in:\nBookingService.completeBooking()\nvia PricingService.recalculateLoyaltyTier()\n\nAll thresholds from LoyaltyProperties\n(application.properties — configurable)\n\nDiscount applied in price pipeline:\nafter group discount, before dynamic pricing\n\nShown on dashboard:\n- Current tier badge\n- Progress bar to next tier\n- Trips remaining until next tier"]
+
+    style B fill:#cd7f32,color:#fff
+    style S fill:#c0c0c0,color:#000
+    style G fill:#ffd700,color:#000
+    style P fill:#b9f2ff,color:#000

@@ -1,0 +1,263 @@
+---
+title: SafariHub — Entity Relationship Diagram (Core Tables)
+---
+
+erDiagram
+    USERS {
+        bigint id PK
+        string email UK
+        string password_hash "nullable for OAuth-only users"
+        string role "TRAVELER | GUIDE | ADMIN"
+        string status "ACTIVE | SUSPENDED | BANNED"
+        boolean is_active
+        boolean email_verified
+        boolean agreed_to_terms
+        boolean agreed_to_privacy
+        boolean has_password "false for OAuth users before setup"
+        boolean profile_completed
+        timestamptz deleted_at_utc "soft delete"
+        timestamptz created_at_utc
+    }
+
+    TRAVELER_PROFILES {
+        bigint id PK
+        bigint user_id FK
+        string full_name
+        string phone_number
+        string country
+        string city
+        string headline
+        text bio
+        string avatar_url
+        string cover_url
+        string loyalty_tier "BRONZE | SILVER | GOLD"
+        int completed_booking_count
+        boolean review_reminder_enabled
+        timestamptz created_at_utc
+    }
+
+    GUIDE_PROFILES {
+        bigint id PK
+        bigint user_id FK
+        string display_name
+        string phone_number
+        string city
+        text bio
+        string avatar_url
+        string cover_url
+        string verification_status "NOT_SUBMITTED | PENDING | APPROVED | REJECTED"
+        string rejection_reason
+        string document_type "NATIONAL_ID | PASSPORT | DRIVERS_LICENSE"
+        boolean id_verified
+        decimal current_fee_multiplier "default 1.0, range 0.5-1.5"
+        int total_travelers
+        decimal average_rating
+        int total_reviews
+        timestamptz verified_at_utc
+        timestamptz created_at_utc
+    }
+
+    TOUR_TEMPLATES {
+        bigint id PK
+        bigint guide_id FK
+        string title
+        text description
+        string category
+        string[] tags
+        string country
+        string city
+        string meeting_point_name
+        string meeting_point_address
+        decimal meeting_point_lat
+        decimal meeting_point_lng
+        int min_capacity
+        int max_capacity
+        boolean instant_book
+        boolean halal_friendly
+        boolean has_prayer_space
+        boolean halal_food_options
+        boolean gender_sensitive_guides
+        boolean family_friendly
+        boolean is_premium
+        boolean has_group_discount
+        int group_discount_threshold
+        decimal group_discount_pct
+        boolean dynamic_pricing_enabled
+        json dynamic_pricing_config
+        string status "DRAFT|PENDING_REVIEW|PUBLISHED|PAUSED|ARCHIVED"
+        string[] inclusions
+        string[] exclusions
+        string[] requirements
+        string[] what_to_bring
+        timestamptz deleted_at_utc
+        timestamptz created_at_utc
+    }
+
+    TOUR_OCCURRENCES {
+        bigint id PK
+        bigint template_id FK
+        timestamptz start_time_utc
+        timestamptz end_time_utc
+        int max_capacity
+        int seats_reserved
+        decimal price
+        string status "SCHEDULED|IN_PROGRESS|COMPLETED|CANCELLED|FULL"
+        string recurrence_pattern "ONCE|WEEKLY|CUSTOM"
+        int version "optimistic lock @Version"
+        timestamptz deleted_at_utc
+    }
+
+    BOOKINGS {
+        bigint id PK
+        bigint traveler_id FK
+        bigint occurrence_id FK
+        string status "PendingPayment|PendingGuide|Confirmed|InProgress|Completed|Cancelled|Expired"
+        string booking_mode "INSTANT|REQUEST"
+        int people_count
+        decimal base_price_snapshot
+        decimal final_price_snapshot
+        decimal platform_fee_snapshot
+        decimal loyalty_discount_applied
+        decimal group_discount_applied
+        decimal dynamic_multiplier_applied
+        string qr_code UK
+        boolean waiver_signed
+        timestamptz cart_expires_at_utc
+        timestamptz checked_in_at_utc
+        timestamptz completed_at_utc
+        timestamptz review_reminder_sent_at
+        string cancellation_reason
+        int version "@Version optimistic lock"
+        timestamptz deleted_at_utc
+        timestamptz created_at_utc
+    }
+
+    WAITLIST_ENTRIES {
+        bigint id PK
+        bigint traveler_id FK
+        bigint occurrence_id FK
+        int people_count
+        int position
+        string status "WAITING|PROMOTED|CANCELLED"
+        timestamptz promoted_at_utc
+        timestamptz deleted_at_utc
+        timestamptz created_at_utc
+    }
+
+    PAYMENTS {
+        bigint id PK
+        bigint booking_id FK
+        string stripe_session_id UK
+        string stripe_payment_intent_id
+        string stripe_transfer_id
+        decimal amount
+        string currency
+        string status "Pending|Captured|Refunded|Failed"
+        string payout_status "Pending|Transferred|Failed|Cancelled"
+        timestamptz payout_eligible_at_utc
+        timestamptz payout_released_at_utc
+        timestamptz paid_at_utc
+    }
+
+    TRAVELER_PAYMENT_METHODS {
+        bigint id PK
+        bigint traveler_id FK
+        string stripe_payment_method_id UK
+        string card_brand
+        string last_four
+        string cardholder_name
+        int exp_month
+        int exp_year
+        boolean is_default
+        timestamptz deleted_at_utc
+        timestamptz created_at_utc
+    }
+
+    REVIEWS {
+        bigint id PK
+        bigint booking_id FK
+        bigint traveler_id FK
+        bigint guide_id FK
+        int guide_knowledge_rating "1-5"
+        int tour_pacing_rating "1-5"
+        int price_value_rating "1-5"
+        decimal overall_rating "computed average"
+        text comment
+        string guide_response
+        boolean is_hidden
+        timestamptz deleted_at_utc
+        timestamptz created_at_utc
+    }
+
+    DISPUTES {
+        bigint id PK
+        bigint booking_id FK
+        bigint opened_by_id FK
+        string issue_type
+        text statement
+        text against_user_response
+        string status "OPEN|IN_REVIEW|RESOLVED|REJECTED"
+        string resolution_notes
+        timestamptz deadline_utc
+        timestamptz resolved_at_utc
+        timestamptz created_at_utc
+    }
+
+    NOTIFICATIONS {
+        bigint id PK
+        bigint user_id FK
+        string type "30+ types"
+        string title
+        string message
+        string reference_id
+        string reference_type
+        boolean is_read
+        timestamptz created_at_utc
+    }
+
+    CONVERSATIONS {
+        bigint id PK
+        bigint traveler_id FK
+        bigint guide_id FK
+        timestamptz last_message_at_utc
+        timestamptz created_at_utc
+    }
+
+    MESSAGES {
+        bigint id PK
+        bigint conversation_id FK
+        bigint sender_id FK
+        text content
+        boolean is_read
+        timestamptz read_at_utc
+        timestamptz sent_at_utc
+    }
+
+    ADMIN_AUDIT_EVENTS {
+        bigint id PK
+        bigint admin_user_id FK
+        string action_type
+        string description
+        json before_state
+        json after_state
+        string target_entity_type
+        bigint target_entity_id "nullable"
+        timestamptz created_at_utc
+    }
+
+    USERS ||--o| TRAVELER_PROFILES : "has"
+    USERS ||--o| GUIDE_PROFILES : "has"
+    GUIDE_PROFILES ||--o{ TOUR_TEMPLATES : "creates"
+    TOUR_TEMPLATES ||--o{ TOUR_OCCURRENCES : "schedules"
+    TOUR_OCCURRENCES ||--o{ BOOKINGS : "booked via"
+    TOUR_OCCURRENCES ||--o{ WAITLIST_ENTRIES : "waitlisted on"
+    TRAVELER_PROFILES ||--o{ BOOKINGS : "makes"
+    TRAVELER_PROFILES ||--o{ TRAVELER_PAYMENT_METHODS : "stores"
+    BOOKINGS ||--o| PAYMENTS : "paid via"
+    BOOKINGS ||--o| REVIEWS : "reviewed in"
+    BOOKINGS ||--o| DISPUTES : "disputed in"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    TRAVELER_PROFILES ||--o{ CONVERSATIONS : "participates in"
+    GUIDE_PROFILES ||--o{ CONVERSATIONS : "participates in"
+    CONVERSATIONS ||--o{ MESSAGES : "contains"
+    USERS ||--o{ ADMIN_AUDIT_EVENTS : "performed by"

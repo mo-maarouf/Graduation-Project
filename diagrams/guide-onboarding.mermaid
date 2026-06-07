@@ -1,0 +1,45 @@
+---
+title: SafariHub — Guide Onboarding & Verification Flow
+---
+
+flowchart TD
+    A["Register as Guide\n(email + password OR Google OAuth)"] --> B
+
+    B["Email Verification\nPOST /api/auth/email/verify/request\n6-digit code, 30min expiry"] --> C
+
+    C["Complete Guide Profile\nPOST /api/guide/profile\n(name, phone, country, city, bio min 30 chars, languages)"] --> D
+
+    D["Submit ID Verification\nPOST /api/guide/verification\nChoose document type:"] --> E
+
+    E{"Document Type"}
+    E -->|"National ID"| F["Upload front image\nUpload back image\nUpload selfie\n(3 images total)"]
+    E -->|"Passport"| G["Upload passport image\nUpload selfie\n(2 images total)"]
+    E -->|"Driver's License"| H["Upload front image\nUpload back image\nUpload selfie\n(3 images total)"]
+
+    F --> I
+    G --> I
+    H --> I
+
+    I["Admin Review Queue\nAdmin sees: document type, images, submission date\nAdmin actions:"]
+
+    I --> J["APPROVE\nPOST /api/admin/guide-verifications/{id}/approve\nGuideProfile.idVerified = true\nVerification status = APPROVED\nAudit log entry created\nNotification → guide"]
+
+    I --> K["REJECT\nPOST /api/admin/guide-verifications/{id}/reject\n{rejectionReason: 'blurry images...'}\nVerification status = REJECTED\nNotification → guide with reason\nGuide can resubmit"]
+
+    J --> L["Guide Dashboard Unlocked\nCreate New Tour button active\nCan submit tours for review"]
+
+    L --> M["Create Tour Template\nSave as DRAFT"]
+    M --> N["Submit for Review\nStatus: PENDING_REVIEW"]
+    N --> O["Admin Tour Review\nApprove / Reject with reason"]
+    O -->|Approved| P["Tour PUBLISHED\nAppears in marketplace\nOccurrences bookable"]
+    O -->|Rejected| M
+
+    style A fill:#1e40af,color:#fff
+    style P fill:#15803d,color:#fff
+    style J fill:#15803d,color:#fff
+    style K fill:#dc2626,color:#fff
+
+    subgraph GATE["Dashboard Gate (before all 3 steps complete)"]
+        G1["3 steps left banner shown\n✗ Verify email\n✗ Complete profile\n✗ ID approval"]
+        G2["Create Tour button LOCKED\nWatermarked: 'Verification required'"]
+    end

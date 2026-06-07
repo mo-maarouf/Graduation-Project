@@ -1,0 +1,54 @@
+---
+title: SafariHub — Waitlist & Seat Promotion Logic
+---
+
+sequenceDiagram
+    participant T1 as Traveler 1\n(waitlist pos 1)
+    participant T2 as Traveler 2\n(waitlist pos 2)
+    participant T3 as Existing Booking\n(cancels)
+    participant API as BookingService
+    participant DB as PostgreSQL
+    participant WS as WebSocket
+
+    Note over T1,WS: Scenario: Tour is FULL. T1 and T2 join waitlist.
+
+    T1->>API: POST /api/traveler/waitlist {occurrenceId, peopleCount=2}
+    API->>DB: INSERT waitlist_entry (position=1, status=WAITING, peopleCount=2)
+    API-->>T1: You are #1 in queue
+
+    T2->>API: POST /api/traveler/waitlist {occurrenceId, peopleCount=5}
+    API->>DB: INSERT waitlist_entry (position=2, status=WAITING, peopleCount=5)
+    API-->>T2: You are #2 in queue
+
+    Note over T3,WS: Existing confirmed traveler cancels their 3-seat booking
+
+    T3->>API: DELETE /api/traveler/bookings/{id}
+    API->>DB: SELECT ... FOR UPDATE (lock occurrence)
+    API->>DB: UPDATE booking SET status=Cancelled
+    API->>DB: seatsReserved -= 3  (now 3 free seats)
+    API->>DB: Process refund based on cancellation timing
+
+    Note over API,WS: Waitlist promotion logic
+
+    API->>DB: SELECT waitlist WHERE occurrenceId=? AND status=WAITING ORDER BY position ASC
+    Note over API: T1 needs 2 seats. 3 available. 2 ≤ 3 ✅
+    API->>DB: seatsReserved += 2 (T1's count)
+    API->>DB: UPDATE T1 waitlist_entry SET status=PROMOTED, promotedAt=now
+    API->>DB: INSERT booking for T1 (status=PendingPayment, cartExpiresAt=now+15min)
+    API->>WS: Notify T1: "You've been promoted! 15min to pay"
+    Note over API: T2 needs 5 seats. 1 remaining. 5 > 1 ❌ SKIP
+    Note over API: T2 stays in queue at position 2
+    Note over API: (If T3 had freed 5+ seats, T2 would be promoted instead)
+
+    Note over T1,WS: T1 must pay within 15 minutes
+
+    alt T1 pays in time
+        T1->>API: POST /api/payments/create-session
+        Note over API: Stripe checkout flow (see payment diagram)
+        API->>DB: UPDATE booking SET status=Confirmed
+    else T1 does not pay (PaymentTimeoutJob)
+        Note over API: PaymentTimeoutJob fires
+        API->>DB: UPDATE T1 booking SET status=Expired
+        API->>DB: seatsReserved -= 2 (seats freed again)
+        Note over API: Repeat promotion check — T2 still needs 5, only 2 free → still skipped
+    end

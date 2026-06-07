@@ -1,0 +1,43 @@
+---
+title: SafariHub — Concurrency & Double-Booking Prevention
+---
+
+sequenceDiagram
+    participant A as Thread A (User A)
+    participant B as Thread B (User B)
+    participant DB as PostgreSQL
+
+    Note over A,DB: Scenario: 1 seat left (seatsReserved=9, maxCapacity=10). Two users book simultaneously.
+
+    A->>DB: BEGIN TRANSACTION
+    A->>DB: SELECT * FROM tour_occurrences WHERE id=42 FOR UPDATE
+    Note over DB: Row-level WRITE LOCK acquired by Thread A ✅
+    B->>DB: BEGIN TRANSACTION
+    B->>DB: SELECT * FROM tour_occurrences WHERE id=42 FOR UPDATE
+    Note over DB: Thread B BLOCKS — waiting for lock ⏳
+    Note over DB: Lock timeout = 2000ms
+
+    A->>DB: Read: seatsReserved=9, maxCapacity=10
+    Note over A: 9 + 1 = 10 ≤ 10 ✅ proceed
+    A->>DB: UPDATE tour_occurrences SET seatsReserved=10 WHERE id=42
+    A->>DB: INSERT INTO bookings (status=PendingPayment, ...)
+    A->>DB: COMMIT ← lock released ✅
+
+    Note over DB: Thread B now gets the lock
+    B->>DB: Read: seatsReserved=10, maxCapacity=10 (sees committed value)
+    Note over B: 10 + 1 = 11 > 10 ❌ CONFLICT
+    B-->>API: throw SeatUnavailableException
+    B->>DB: ROLLBACK
+
+    Note over A,DB: Result: exactly 1 booking, no overbook
+
+    Note over A,DB: Deadlock Prevention (reschedule scenario)
+    Note over A,DB: Always lock TWO occurrences in ascending ID order
+    Note over A,DB: Thread A locks ID=10 then ID=20
+    Note over A,DB: Thread B also locks ID=10 then ID=20
+    Note over A,DB: Same order → Thread B blocks on ID=10 → no deadlock
+
+    Note over A,DB: Optimistic Lock (@Version on Booking)
+    Note over A,DB: PaymentTimeoutJob vs Stripe webhook race:
+    Note over A,DB: One wins → updates @Version → other gets OptimisticLockException
+    Note over A,DB: Caught + logged → booking state remains consistent

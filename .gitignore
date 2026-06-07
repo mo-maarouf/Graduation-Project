@@ -1,10 +1,50 @@
-# Docker secrets — never commit real values
-.env
+# ─── Backend ──────────────────────────────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+.mvn/timing.properties
 
-# OS
+# Secrets — NEVER commit
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-*.properties
+backend/src/main/resources/application.yml
+backend/src/main/resources/application-*.yml
+
+# IDE
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# ─── Frontend ─────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+
+# Secrets
+.env
+.env.txt
+*.env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build tools
+.vercel/
+.turbo/
+
+# ─── System ───────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-
-.env.txt
-
-.env.txt
+*.swp
+*.swo
+*~
+*.log
