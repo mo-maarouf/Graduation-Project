@@ -16,7 +16,14 @@ import java.nio.charset.StandardCharsets;
 public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
 
     @Value("${app.oauth2.frontend-redirect}")
-    private String frontendRedirect;
+    private String rawFrontendRedirect;
+
+    private String getFrontendRedirect() {
+        if (rawFrontendRedirect != null && !rawFrontendRedirect.startsWith("http")) {
+            return "https://" + rawFrontendRedirect;
+        }
+        return rawFrontendRedirect;
+    }
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
@@ -26,7 +33,7 @@ public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
         }
 
         String msg = (exception != null && exception.getMessage() != null) ? exception.getMessage() : "auth_failure";
-        String redirect = frontendRedirect + "?error=" + URLEncoder.encode(msg, StandardCharsets.UTF_8);
+        String redirect = getFrontendRedirect() + "?error=" + URLEncoder.encode(msg, StandardCharsets.UTF_8);
         response.sendRedirect(redirect);
     }
 }

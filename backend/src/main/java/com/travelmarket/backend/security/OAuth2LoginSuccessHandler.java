@@ -60,7 +60,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private static final Duration REFRESH_TTL_DEFAULT = Duration.ofDays(7);
 
     @Value("${app.oauth2.frontend-redirect}")
-    private String frontendRedirect;
+    private String rawFrontendRedirect;
+
+    private String getFrontendRedirect() {
+        if (rawFrontendRedirect != null && !rawFrontendRedirect.startsWith("http")) {
+            return "https://" + rawFrontendRedirect;
+        }
+        return rawFrontendRedirect;
+    }
 
     @Override
     public void onAuthenticationSuccess(
@@ -108,7 +115,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
                 if (!"Traveler".equals(roleCookie) && !"Guide".equals(roleCookie)) {
                     System.out.println("DEBUG: OAuth2 - Missing role cookie for new user");
-                    response.sendRedirect(frontendRedirect + "?error=" + url("missing_role"));
+                    response.sendRedirect(getFrontendRedirect() + "?error=" + url("missing_role"));
                     return;
                 }
                 // 2) No identity yet: try to find user by email
@@ -120,7 +127,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                     if (!user.getRole().name().equals(roleCookie)) {
                         System.out.println("DEBUG: OAuth2 - Role mismatch: expected " + user.getRole().name() + " but got " + roleCookie);
                         clearCookie(response, "oauth_role");
-                        response.sendRedirect(frontendRedirect + "?error=" + url("role_mismatch"));
+                        response.sendRedirect(getFrontendRedirect() + "?error=" + url("role_mismatch"));
                         return;
                     }
                 }
@@ -194,7 +201,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             clearCookie(response, "oauth_role");
 
             // Redirect to frontend
-            String redirect = frontendRedirect
+            String redirect = getFrontendRedirect()
                     + "?token=" + url(jwt)
                     + "&role=" + url(user.getRole().name())
                     + "&new=" + (isNewUser ? "1" : "0");
@@ -206,7 +213,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             System.err.println("CRITICAL ERROR in OAuth2LoginSuccessHandler:");
             e.printStackTrace();
             String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
-            response.sendRedirect(frontendRedirect + "?error=" + url("server_error") + "&msg=" + url(msg));
+            response.sendRedirect(getFrontendRedirect() + "?error=" + url("server_error") + "&msg=" + url(msg));
         }
     }
 
