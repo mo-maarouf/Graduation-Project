@@ -72,7 +72,7 @@ function DesktopSidebar() {
  className={`hidden lg:block flex-shrink-0 border-r border-primary-light/20 dark:border-primary-dark/20 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-80 xl:w-96'}`}
  aria-label="Tour filters sidebar"
  >
- <div className="sticky top-[80px] z-20 h-[calc(100vh-100px)] overflow-y-auto pb-0 custom-scrollbar">
+ <div className="sticky top-[56px] sm:top-[64px] z-20 h-[calc(100vh-56px)] sm:h-[calc(100vh-64px)] overflow-y-auto pb-0 custom-scrollbar">
       {!isCollapsed && (
         <div className="flex items-center justify-between px-6 py-4 border-b border-primary-light/20 dark:border-primary-dark/20 mb-1">
           <div className="flex items-center gap-2">
@@ -130,7 +130,7 @@ function ToursPageContent() {
 
  return (
  <PageLayout>      
-  <div className="flex flex-row w-full pt-4 sm:pt-8 min-h-screen overflow-visible">
+  <div className="flex flex-row w-full min-h-screen overflow-visible">
  <DesktopSidebar />
 
  <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
