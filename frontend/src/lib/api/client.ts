@@ -17,10 +17,10 @@ export const getApiUrl = (): string => {
     // In local dev it falls back to localhost:8081.
     return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8081';
   }
-  // Browser: Use relative path.
-  // Next.js config (rewrites) will proxy /api to the backend.
-  // This solves same-WiFi IP issues and CORS.
-  return '';
+  // Browser: Use the public API URL if available (points directly to backend, e.g., Render)
+  // This avoids Vercel proxy timeout limits and cookie stripping issues.
+  // Fall back to relative path ('') if not set (for local dev rewrites).
+  return process.env.NEXT_PUBLIC_API_URL ?? '';
 };
 
 const apiClient = axios.create({
