@@ -28,7 +28,6 @@ import {
   AuditEventResponse
 } from '@/src/lib/api/admin'
 import { getAdminPendingTours } from '@/src/lib/api/tours'
-import { toast } from 'react-hot-toast'
 import { getGreeting } from '@/src/lib/greeting'
 import AdminDashboardSkeleton from './skeleton'
 
@@ -108,24 +107,23 @@ export default function AdminDashboardPage() {
       try {
         setIsLoading(true)
         const [usersResponse, verifs, audits, tours] = await Promise.all([
-          adminGetUsers(),
-          adminGetPendingVerifications(),
-          adminGetAuditEvents(0, 5),
+          adminGetUsers().catch(() => ({ users: [] })),
+          adminGetPendingVerifications().catch(() => []),
+          adminGetAuditEvents(0, 5).catch(() => ({ content: [], totalElements: 0, totalPages: 0 })),
           getAdminPendingTours().catch(() => [])
         ])
 
         setStats(prev => ({
           ...prev,
-          totalUsers: usersResponse.users.length,
-          pendingVerifications: verifs.length,
-          pendingTours: tours.length
+          totalUsers: (usersResponse as any).users?.length ?? 0,
+          pendingVerifications: (verifs as any).length ?? 0,
+          pendingTours: (tours as any).length ?? 0
         }))
 
-        setRecentAudits(audits.content || [])
-        setPendingVerifs(verifs.slice(0, 5)) // Show top 5
+        setRecentAudits((audits as any).content || [])
+        setPendingVerifs((verifs as any).slice(0, 5))
       } catch (err) {
         console.error('Failed to fetch admin stats:', err)
-        toast.error('Failed to load dashboard data')
       } finally {
         setIsLoading(false)
       }

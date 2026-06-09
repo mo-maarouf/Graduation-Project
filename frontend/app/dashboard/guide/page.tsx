@@ -19,7 +19,6 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
 import { getGreeting } from '@/src/lib/greeting'
 import OnboardingBannerWrapper from '@/src/components/dashboard/OnboardingBannerWrapper'
-import { toast } from 'react-hot-toast'
 import { getGuideProfile, getGuideBookings, getGuideTours } from '@/src/lib/api/tours'
 import { GuideProfileResponse } from '@/src/lib/types/guide.types'
 import { GuideBookingResponse, BookingStatus, TourTemplateResponse } from '@/src/lib/types/tour.types'
@@ -99,13 +98,13 @@ export default function GuideDashboardPage() {
      try {
        setLoading(true)
        const [p, b, t] = await Promise.all([
-         getGuideProfile(), 
+         getGuideProfile().catch(() => null), 
          getGuideBookings().catch(() => []), 
          getGuideTours().catch(() => [])
        ])
        setProfile(p); setBookings(b); setTours(t)
      } catch (err) {
-       toast.error('Could not load some stats')
+       console.error('Dashboard fetch error:', err)
      } finally {
        setLoading(false)
      }

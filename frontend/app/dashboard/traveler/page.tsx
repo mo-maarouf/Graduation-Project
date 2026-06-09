@@ -21,7 +21,6 @@ import { useAuth } from '@/src/lib/contexts/AuthContext'
 import { travelerGetProfile, travelerGetLoyaltyStatus, TravelerProfileResponse, LoyaltyStatusResponse, LoyaltyTierType } from '@/src/lib/api/traveler'
 import { getGreeting } from '@/src/lib/greeting'
 import OnboardingBannerWrapper from '@/src/components/dashboard/OnboardingBannerWrapper'
-import { toast } from 'react-hot-toast'
 import { getTravelerBookings } from '@/src/lib/api/tours'
 import { BookingResponse } from '@/src/lib/types/tour.types'
 
@@ -233,16 +232,15 @@ export default function TravelerDashboardPage() {
  async function fetchData() {
  try {
  const [profileData, loyaltyData, bookingsData] = await Promise.all([
- travelerGetProfile(),
- travelerGetLoyaltyStatus().catch(() => null), // non-critical — don't fail whole page
- getTravelerBookings().catch(() => []), // Not built yet
+ travelerGetProfile().catch(() => null),
+ travelerGetLoyaltyStatus().catch(() => null),
+ getTravelerBookings().catch(() => []),
  ])
  setProfile(profileData)
  setLoyalty(loyaltyData)
  setBookings(bookingsData || [])
  } catch (error) {
  console.error('Failed to fetch dashboard data:', error)
- toast.error('Could not load detailed stats')
  } finally {
  setLoading(false)
  }
