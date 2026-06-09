@@ -122,6 +122,8 @@ export function NotificationBell() {
  return `/dashboard/${role}/settings`;
  case 'PROFILE_COMPLETED':
  return `/dashboard/${role}/profile`;
+ case 'SETUP_PASSWORD_REMINDER':
+ return `/dashboard/${role}/settings`;
  default:
  return null;
  }

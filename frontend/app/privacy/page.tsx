@@ -110,12 +110,12 @@ export default function PrivacyPage() {
                   <BookOpen className="w-5 h-5 text-primary-light" />
                   Contents
                 </h2>
-                <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 lg:gap-1 no-scrollbar">
+                <nav className="flex flex-wrap lg:flex-col gap-2 lg:gap-1">
                   {sections.map((section) => (
                     <Link
                       key={section.id}
                       href={`#${section.id}`}
-                      className="whitespace-nowrap lg:whitespace-normal px-3 py-2 lg:px-0 lg:py-2 text-sm text-theme-secondary hover:text-primary-light transition-colors border lg:border-0 border-theme lg:border-l-2 border-transparent lg:hover:border-blue-600 rounded-lg lg:rounded-none lg:pl-3 bg-theme-base/50 lg:bg-transparent"
+                      className="px-3 py-1.5 lg:px-0 lg:py-2 text-xs lg:text-sm text-theme-secondary hover:text-primary-light transition-colors border lg:border-0 border-theme lg:border-l-2 border-transparent lg:hover:border-blue-600 rounded-lg lg:rounded-none lg:pl-3 bg-theme-base/50 lg:bg-transparent whitespace-nowrap lg:whitespace-normal"
                     >
                       {section.title}
                     </Link>

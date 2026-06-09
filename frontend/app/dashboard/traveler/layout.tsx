@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/src/lib/contexts/AuthContext'
 import Navigation from '@/src/components/layout/Navigation'
+import { NotificationBell } from '@/src/components/NotificationBell'
 import ThemeToggle from '@/src/components/layout/ThemeToggle'
 import { BookingStatus } from '@/src/lib/types/tour.types'
 
@@ -227,6 +228,7 @@ export default function TravelerDashboardLayout({
   <h1 className="font-bold text-[10px] capitalize tracking-[0.2em] text-theme-primary">Traveler Hub</h1>
   </div>
   <div className="flex items-center gap-2">
+  <NotificationBell />
   <ThemeToggle />
   <button
   onClick={() => setIsSidebarOpen(true)}

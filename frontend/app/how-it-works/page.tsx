@@ -223,10 +223,10 @@ const faqs = [
 export default function HowItWorksPage() {
  return (
  <PageLayout>
- <div className="flex flex-col w-full relative overflow-hidden transition-colors duration-500 surface-card ">
+ <div className="flex flex-col w-full relative overflow-hidden transition-colors duration-500">
  
  {/* --- HERO SECTION (Original Content with New Background) --- */}
- <section className="relative min-h-[90vh] flex flex-col items-center justify-center overflow-hidden pt-20">
+ <section className="relative min-h-[85vh] flex flex-col items-center justify-center overflow-hidden">
  
  <div className="relative z-10 w-full max-w-7xl mx-auto px-4 text-center">
  {/* Pre-header badge */}
@@ -281,7 +281,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={itemFade}
   className="container-safe mx-auto"
   >
@@ -302,7 +302,7 @@ export default function HowItWorksPage() {
   <motion.div
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={staggerContainer}
   >
  <motion.h2 
@@ -343,7 +343,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial={{ opacity: 0, scale: 0.5 }}
   whileInView={{ opacity: 1, scale: 1 }}
-  viewport={{ once: false }}
+  viewport={{ once: true }}
   className="absolute inset-0 bg-primary-light/10 dark:bg-primary-light/5 blur-[120px] rounded-full" 
   />
  <div className="grid grid-cols-2 gap-6 relative z-10">
@@ -381,7 +381,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={itemFade}
   className="text-center mb-20"
   >
@@ -396,7 +396,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.1 }}
+  viewport={{ once: true, amount: 0.1 }}
   variants={staggerContainer}
   className="grid grid-cols-1 md:grid-cols-3 gap-8"
   >
@@ -437,7 +437,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.1 }}
+  viewport={{ once: true, amount: 0.1 }}
   variants={staggerContainer}
   className="order-2 lg:order-1"
   >
@@ -464,7 +464,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial={{ opacity: 0, x: 40 }}
   whileInView={{ opacity: 1, x: 0 }}
-  viewport={{ once: false }}
+  viewport={{ once: true }}
   transition={{ duration: 0.8 }}
   className="order-1 lg:order-2"
   >
@@ -493,7 +493,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={itemFade}
   className="text-center mb-20"
   >
@@ -509,7 +509,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.1 }}
+  viewport={{ once: true, amount: 0.1 }}
   variants={staggerContainer}
   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
   >
@@ -546,7 +546,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={itemFade}
   className="text-center mb-20"
   >
@@ -560,7 +560,7 @@ export default function HowItWorksPage() {
   <motion.div 
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false }}
+  viewport={{ once: true }}
   variants={staggerContainer}
   className="space-y-6"
   >
@@ -602,7 +602,7 @@ export default function HowItWorksPage() {
   <motion.div
   initial="hidden"
   whileInView="show"
-  viewport={{ once: false, amount: 0.2 }}
+  viewport={{ once: true, amount: 0.2 }}
   variants={itemFade}
   >
  <h2 className="text-5xl sm:text-8xl font-bold text-white mb-10 tracking-tight leading-tight">

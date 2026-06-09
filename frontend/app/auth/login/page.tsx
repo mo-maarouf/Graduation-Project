@@ -94,10 +94,12 @@ export default function LoginPage() {
  </Link>
  </p>
 
- <div className="mt-10 sm:mt-12 flex justify-center gap-6 text-[10px] font-bold capitalize tracking-normal text-theme-muted">
- <Link href="/terms" className="hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Terms</Link>
- <Link href="/privacy" className="hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Privacy</Link>
- <Link href="/contact" className="hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Support</Link>
+ <div className="mt-10 sm:mt-12 flex flex-nowrap items-center justify-center gap-5 text-xs font-bold tracking-wide text-theme-muted">
+ <Link href="/terms" className="whitespace-nowrap hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Terms</Link>
+ <span className="w-1 h-1 rounded-full bg-theme-muted flex-shrink-0" />
+ <Link href="/privacy" className="whitespace-nowrap hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Privacy</Link>
+ <span className="w-1 h-1 rounded-full bg-theme-muted flex-shrink-0" />
+ <Link href="/contact" className="whitespace-nowrap hover:text-theme-secondary dark:hover:text-gray-200 transition-colors">Support</Link>
  </div>
  </div>
 
