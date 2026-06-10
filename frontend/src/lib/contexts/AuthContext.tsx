@@ -307,10 +307,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  await apiEmailVerifyConfirmToken({ token });
  };
 
- // Confirm email using code entered manually
- const confirmEmailWithCode = async (email: string, code: string) => {
- await apiEmailVerifyConfirmCode({ email, code });
- };
+  // Confirm email using code entered manually
+  const confirmEmailWithCode = async (email: string, code: string) => {
+    await apiEmailVerifyConfirmCode({ email, code });
+    if (user && user.email.toLowerCase() === email.toLowerCase()) {
+      setUser({ ...user, emailVerified: true });
+    }
+  };
 
  // Request password reset code (backend sends email)
  const requestPasswordReset = async (email: string) => {
