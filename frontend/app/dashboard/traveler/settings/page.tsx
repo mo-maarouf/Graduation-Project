@@ -72,7 +72,7 @@ const TIMEZONES = [
 
 export default function TravelerSettingsPage() {
  const router = useRouter()
- const { user, forgotPassword, isLoading, logout } = useAuth()
+ const { user, forgotPassword, isLoading, logout, logoutAll } = useAuth()
  
  if (isLoading || !user) {
    return <SettingsSkeleton />
@@ -97,6 +97,20 @@ export default function TravelerSettingsPage() {
  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
  const [deleteConfirmText, setDeleteConfirmText] = useState('')
  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+ const [isLoggingOutAll, setIsLoggingOutAll] = useState(false)
+
+ const handleLogoutAll = async () => {
+   setIsLoggingOutAll(true)
+   try {
+     await logoutAll()
+     toast.success('Successfully signed out of all other devices.')
+   } catch (err) {
+     toast.error('Failed to sign out everywhere. Please try again.')
+   } finally {
+     setIsLoggingOutAll(false)
+   }
+ }
 
  // 2FA states
  const [twoFaStatus, setTwoFaStatus] = useState<'idle' | 'scanning' | 'confirming' | 'disabling'>('idle')
@@ -476,7 +490,20 @@ export default function TravelerSettingsPage() {
     </div>
   </div>
 
- <div className="p-6 sm:p-10 bg-red-500/5 border border-red-500/20 rounded-[2rem] sm:rounded-[3rem]">
+  <div className="p-6 sm:p-10 bg-orange-500/5 border border-orange-500/20 rounded-[2rem] sm:rounded-[3rem]">
+    <h3 className="text-[10px] font-black text-orange-600 dark:text-orange-400 capitalize tracking-[0.3em] mb-4 flex items-center gap-2"><Globe className="w-4 h-4" /> Global Session Management</h3>
+    <p className="text-[10px] sm:text-xs text-theme-secondary mb-6 leading-relaxed font-bold capitalize tracking-normal opacity-80">Invalidate all active sessions across all devices and browsers. You will be signed out everywhere.</p>
+    
+    <button
+      onClick={handleLogoutAll}
+      disabled={isLoggingOutAll}
+      className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-black capitalize tracking-normal rounded-xl transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+    >
+      {isLoggingOutAll ? <><Loader2 className="w-4 h-4 animate-spin" /> Terminating...</> : <><Globe className="w-4 h-4" /> Sign Out Everywhere</>}
+    </button>
+  </div>
+
+  <div className="p-6 sm:p-10 bg-red-500/5 border border-red-500/20 rounded-[2rem] sm:rounded-[3rem]">
  <h3 className="text-[10px] font-black text-red-600 dark:text-red-400 capitalize tracking-[0.3em] mb-4 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Termination Protocol</h3>
  <p className="text-[10px] sm:text-xs text-theme-secondary mb-6 leading-relaxed font-bold capitalize tracking-normal opacity-80">Permanently delete your account and all associated data. This action is irreversible.</p>
  
