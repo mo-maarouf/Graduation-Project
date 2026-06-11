@@ -11,8 +11,19 @@ export default function Footer() {
   return (
     <footer className={`pt-6 ${bottomPadding} surface-section`} aria-label="Footer">
       <div className="container-safe mx-auto px-4 text-center">
-        <p className="text-sm text-theme-muted ">
+        <p className="text-sm text-theme-muted mb-2">
           © {new Date().getFullYear()} Tourongo Travel Marketplace
+        </p>
+        <p className="text-xs text-theme-muted flex items-center justify-center gap-1">
+          Designed and developed by Mo Maarouf. 
+          <a 
+            href="https://github.com/mo-maarouf/Graduation-Project" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-primary-light dark:text-primary-dark hover:underline ml-1"
+          >
+            View Source Code
+          </a>
         </p>
       </div>
     </footer>
