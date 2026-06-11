@@ -227,7 +227,7 @@ export default function HowItWorksPage() {
  
  {/* --- HERO SECTION (Original Content with New Background) --- */}
  <section className="relative min-h-[85vh] flex flex-col items-center justify-center overflow-hidden">
- <CinematicBackground />
+ <CinematicBackground>
  
  <div className="relative z-10 w-full max-w-7xl mx-auto px-4 text-center">
  {/* Pre-header badge */}
@@ -274,7 +274,7 @@ export default function HowItWorksPage() {
  <ChevronDown className="w-6 h-6 text-theme-muted/40" />
  </motion.div>
  </div>
- 
+ </CinematicBackground>
  </section>
 
   {/* --- FLOW SECTION --- */}

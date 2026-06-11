@@ -62,7 +62,7 @@ export default function HeroSection() {
  className="relative min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800"
  aria-label="Main hero section"
  >
- <CinematicBackground />
+ <CinematicBackground>
  {/* 
  ============================================
  GRID BACKGROUND - DUAL THEME PATTERN
@@ -271,7 +271,7 @@ export default function HeroSection() {
  Start Your Journey
  </button>
  </div>
- </div>
+ </CinematicBackground>
  </section>
  )
 }
