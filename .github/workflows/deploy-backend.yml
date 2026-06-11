@@ -18,6 +18,7 @@ jobs:
         host: ${{ secrets.ORACLE_HOST }}
         username: ubuntu
         key: ${{ secrets.ORACLE_SSH_KEY }}
+        command_timeout: 30m
         script: |
           # 1. Navigate to the code folder
           cd ~/Graduation-Project
