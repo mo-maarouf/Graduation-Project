@@ -55,6 +55,7 @@ import {
  submitTourForReview,
  withdrawTourFromReview
 } from '@/src/lib/api/tours'
+import { uploadToCloudinary } from '@/src/lib/api/upload'
 
 // Dynamically import Map components with SSR disabled for Leaflet support
 const MapPicker = dynamic(() => import('@/src/components/ui/MapPicker'), { 
@@ -1253,37 +1254,35 @@ function MediaSection({ formData, onChange }: MediaSectionProps) {
  if (!files || files.length === 0) return
 
  setUploading(true)
+ const uploadToastId = toast.loading(`Uploading ${files.length} file(s) to Cloudinary...`)
  try {
  const newMedia = []
  for (let i = 0; i < files.length; i++) {
  const file = files[i]
 
- // 50MB limit check
  if (file.size > 100 * 1024 * 1024) {
  toast.error(`File ${file.name} is too large. Max 100MB.`)
  continue
  }
 
- const reader = new FileReader()
- const base64Promise = new Promise<string>((resolve, reject) => {
- reader.onload = () => resolve(reader.result as string)
- reader.onerror = () => reject(new Error('Failed to read file'))
- reader.readAsDataURL(file)
- })
- const base64 = await base64Promise
+ // Upload directly to Cloudinary — get back a secure HTTPS URL
+ const secureUrl = await uploadToCloudinary(file, 'tourongo/tours')
 
  newMedia.push({
  id: `temp-${Date.now()}-${i}`,
  type: file.type.startsWith('video') ? 'video' as const : 'image' as const,
- url: base64,
+ url: secureUrl, // ✅ Real Cloudinary URL, not base64
  caption: ''
  })
  }
  onChange('gallery', [...formData.gallery, ...newMedia])
- } catch (err) {
- toast.error('Failed to process image')
+ toast.success(`${newMedia.length} file(s) uploaded!`, { id: uploadToastId })
+ } catch (err: any) {
+ toast.error(err?.message || 'Failed to upload image to Cloudinary', { id: uploadToastId })
  } finally {
  setUploading(false)
+ // Reset the input so the same file can be re-selected if needed
+ e.target.value = ''
  }
  }
 
