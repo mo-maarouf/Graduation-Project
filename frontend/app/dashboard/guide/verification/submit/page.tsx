@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Shield, ChevronLeft, Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import apiClient from '@/src/lib/api/client'
 import toast from 'react-hot-toast'
+import { uploadToCloudinary } from '@/src/lib/api/upload'
 
 interface VerificationFormData {
  documentType: 'NATIONAL_ID' | 'PASSPORT'
@@ -24,6 +25,7 @@ export default function GuideVerificationSubmitPage() {
  })
  const [isSubmitting, setIsSubmitting] = useState(false)
  const [errors, setErrors] = useState<Record<string, string>>({})
+ const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({})
 
  const validateForm = () => {
  const newErrors: Record<string, string> = {}
@@ -44,6 +46,19 @@ export default function GuideVerificationSubmitPage() {
  e.preventDefault()
  if (!validateForm()) return
 
+ // Prevent submit if any image is still uploading to Cloudinary or if they are local blob URLs
+ const hasUploading = Object.values(uploadingFields).some(v => v)
+ if (hasUploading) {
+   toast.error('Please wait for images to finish uploading.')
+   return
+ }
+ 
+ // Sanity check: ensure all images are Cloudinary URLs
+ if (formData.idFrontImage.startsWith('blob:')) {
+    toast.error('Images are still uploading, please wait.')
+    return
+ }
+
  setIsSubmitting(true)
  try {
  await apiClient.post('/api/guide/verification/submit', formData)
@@ -56,28 +71,27 @@ export default function GuideVerificationSubmitPage() {
  }
  }
 
- // Convert a File to a base64 data URL using FileReader.
- // This is sent to the backend as the image string. Admin panel can render it with <img src={dataUrl} />.
- // For production, you would upload to S3/Cloudinary and store the resulting URL instead.
- const fileToDataUrl = (file: File): Promise<string> =>
- new Promise((resolve, reject) => {
- const reader = new FileReader()
- reader.onload = () => resolve(reader.result as string)
- reader.onerror = () => reject(new Error('Failed to read file'))
- reader.readAsDataURL(file)
- })
-
- // Handle file selection: read the file as a data URL and store it in form state
+ // Handle file selection: read the file, show local preview, and upload to Cloudinary
  const handleFileUpload = async (field: keyof VerificationFormData, e: React.ChangeEvent<HTMLInputElement>) => {
- const file = e.target.files?.[0]
- if (!file) return
- try {
- const dataUrl = await fileToDataUrl(file)
- setFormData(prev => ({ ...prev, [field]: dataUrl }))
- if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
- } catch {
- toast.error('Failed to read image file. Please try another file.')
- }
+   const file = e.target.files?.[0]
+   if (!file) return
+
+   // Show immediate local preview
+   const localPreview = URL.createObjectURL(file)
+   setFormData(prev => ({ ...prev, [field]: localPreview }))
+   setUploadingFields(prev => ({ ...prev, [field]: true }))
+   
+   try {
+     // Upload to Cloudinary
+     const secureUrl = await uploadToCloudinary(file, 'guide_verifications')
+     setFormData(prev => ({ ...prev, [field]: secureUrl }))
+     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
+   } catch (err: any) {
+     toast.error(err.message || 'Failed to upload image. Please try again.')
+     setFormData(prev => ({ ...prev, [field]: '' })) // Revert preview on failure
+   } finally {
+     setUploadingFields(prev => ({ ...prev, [field]: false }))
+   }
  }
 
 
@@ -152,19 +166,26 @@ export default function GuideVerificationSubmitPage() {
  <div className="flex flex-col items-center justify-center pt-5 pb-6">
  {formData.idFrontImage ? (
  <div className="relative w-20 h-14 rounded-lg overflow-hidden border-2 border-success-green/30 ring-4 ring-success-green/10 mb-2">
- <img src={formData.idFrontImage} className="w-full h-full object-cover" alt="Front Preview" />
- <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
- <CheckCircle className="w-6 h-6 text-success-green" />
- </div>
+ <img src={formData.idFrontImage} className={`w-full h-full object-cover ${uploadingFields['idFrontImage'] ? 'opacity-50 blur-sm' : ''}`} alt="Front Preview" />
+ {!uploadingFields['idFrontImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
+     <CheckCircle className="w-6 h-6 text-success-green" />
+   </div>
+ )}
+ {uploadingFields['idFrontImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+     <Loader2 className="w-5 h-5 text-white animate-spin" />
+   </div>
+ )}
  </div>
  ) : (
  <Upload className="w-8 h-8 text-theme-muted mb-2" />
  )}
  <p className="text-sm text-theme-muted ">
- {formData.idFrontImage ? <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Front uploaded</span> : 'Click to upload front'}
+ {formData.idFrontImage ? (uploadingFields['idFrontImage'] ? 'Uploading...' : <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Front uploaded</span>) : 'Click to upload front'}
  </p>
  </div>
- <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('idFrontImage', e)} />
+ <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('idFrontImage', e)} disabled={uploadingFields['idFrontImage']} />
  </label>
  </div>
  {errors.idFrontImage && <p className="text-xs text-danger-red mt-1">{errors.idFrontImage}</p>}
@@ -181,19 +202,26 @@ export default function GuideVerificationSubmitPage() {
  <div className="flex flex-col items-center justify-center pt-5 pb-6">
  {formData.idBackImage ? (
  <div className="relative w-20 h-14 rounded-lg overflow-hidden border-2 border-success-green/30 ring-4 ring-success-green/10 mb-2">
- <img src={formData.idBackImage} className="w-full h-full object-cover" alt="Back Preview" />
- <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
- <CheckCircle className="w-6 h-6 text-success-green" />
- </div>
+ <img src={formData.idBackImage} className={`w-full h-full object-cover ${uploadingFields['idBackImage'] ? 'opacity-50 blur-sm' : ''}`} alt="Back Preview" />
+ {!uploadingFields['idBackImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
+     <CheckCircle className="w-6 h-6 text-success-green" />
+   </div>
+ )}
+ {uploadingFields['idBackImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+     <Loader2 className="w-5 h-5 text-white animate-spin" />
+   </div>
+ )}
  </div>
  ) : (
  <Upload className="w-8 h-8 text-theme-muted mb-2" />
  )}
  <p className="text-sm text-theme-muted ">
- {formData.idBackImage ? <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Back uploaded</span> : 'Click to upload back'}
+ {formData.idBackImage ? (uploadingFields['idBackImage'] ? 'Uploading...' : <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Back uploaded</span>) : 'Click to upload back'}
  </p>
  </div>
- <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('idBackImage', e)} />
+ <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('idBackImage', e)} disabled={uploadingFields['idBackImage']} />
  </label>
  </div>
  {errors.idBackImage && <p className="text-xs text-danger-red mt-1">{errors.idBackImage}</p>}
@@ -211,19 +239,26 @@ export default function GuideVerificationSubmitPage() {
  <div className="flex flex-col items-center justify-center pt-5 pb-6">
  {formData.selfieImage ? (
  <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-success-green/30 ring-4 ring-success-green/10 mb-2">
- <img src={formData.selfieImage} className="w-full h-full object-cover" alt="Selfie Preview" />
- <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
- <CheckCircle className="w-5 h-5 text-success-green" />
- </div>
+ <img src={formData.selfieImage} className={`w-full h-full object-cover ${uploadingFields['selfieImage'] ? 'opacity-50 blur-sm' : ''}`} alt="Selfie Preview" />
+ {!uploadingFields['selfieImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-success-green/20">
+     <CheckCircle className="w-5 h-5 text-success-green" />
+   </div>
+ )}
+ {uploadingFields['selfieImage'] && (
+   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+     <Loader2 className="w-5 h-5 text-white animate-spin" />
+   </div>
+ )}
  </div>
  ) : (
  <Upload className="w-8 h-8 text-theme-muted mb-2" />
  )}
  <p className="text-sm text-theme-muted ">
- {formData.selfieImage ? <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Selfie uploaded</span> : 'Click to upload selfie'}
+ {formData.selfieImage ? (uploadingFields['selfieImage'] ? 'Uploading...' : <span className="text-success-green font-bold capitalize tracking-normal text-[10px]">Selfie uploaded</span>) : 'Click to upload selfie'}
  </p>
  </div>
- <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('selfieImage', e)} />
+ <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload('selfieImage', e)} disabled={uploadingFields['selfieImage']} />
  </label>
  </div>
  {errors.selfieImage && <p className="text-xs text-danger-red mt-1">{errors.selfieImage}</p>}
