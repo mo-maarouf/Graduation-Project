@@ -2520,7 +2520,6 @@ export default function TourForm({ initialData, isEditing, tourId }: TourFormPro
  })
  }
  }
- }
 
  // 3. Delete removed media from backend
  if (deletedMediaIds.length > 0) {
