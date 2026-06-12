@@ -15,7 +15,7 @@ import { TourMapPointResponse } from '@/src/lib/types/tour.types'
  * iconAnchor: [16, 44] → tip of the 32px pin sits exactly on the coordinate.
  */
 const createCustomIcon = (color: string) => {
- if (typeof window === 'undefined') return null;
+ if (typeof window === 'undefined') return undefined;
  return L.divIcon({
  html: renderToString(
  <div style={{ position: 'relative', width: '44px', height: '44px' }}>
@@ -37,7 +37,7 @@ const createCustomIcon = (color: string) => {
  * SMALL DOT ICON - ROUTE STOP
  */
 const createStopIcon = (color: string) => {
- if (typeof window === 'undefined') return null;
+ if (typeof window === 'undefined') return undefined;
  return L.divIcon({
  html: renderToString(
  <div style={{ 
