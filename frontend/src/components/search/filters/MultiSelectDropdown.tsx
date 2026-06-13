@@ -64,7 +64,7 @@ export default function MultiSelectDropdown({
             leaveTo="opacity-0"
             afterLeave={() => setQuery('')}
           >
-            <ComboboxOptions className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl surface-card py-1 text-xs shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none">
+            <ComboboxOptions className="absolute z-[100] mt-1 max-h-60 w-full overflow-auto rounded-xl surface-card py-1 text-xs shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none">
               {filteredOptions.length === 0 && query !== '' ? (
                 <div className="relative cursor-default select-none px-4 py-2 text-theme-muted">
                   {emptyMessage}

@@ -65,7 +65,7 @@ export default function FilterSection({
       {/* ========================================
       SECTION CONTENT - Collapsible
       ======================================== */}
-      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[2000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+      <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[2000px] opacity-100 mt-4 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden'}`}>
         <div>
           {children}
         </div>
